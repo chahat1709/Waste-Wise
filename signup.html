@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sign Up - Waste Wise</title>
+  <link rel="stylesheet" href="signup-styles.css" />
+</head>
+<body>
+  <div class="signup-container">
+    <div class="signup-box">
+      <img src="logo.png" alt="Waste Wise Logo" class="logo" />
+      <h2>Join Waste Wise</h2>
+      <!-- Input Fields -->
+      <input type="text" id="signup-name" placeholder="Full Name" />
+      <input type="email" id="signup-email" placeholder="Email" />
+      <input type="password" id="signup-password" placeholder="Password" />
+
+      <!-- Email/Password Signup Button -->
+      <button id="signup-btn" class="signup-btn">Sign Up</button>
+      <p>OR</p>
+
+      <!-- Google Signup Button -->
+      <button id="google-signup" class="google-btn">Sign Up with Google</button>
+
+      <!-- Already have an account? -->
+      <p>Already have an account? <a href="login.html">Login here</a></p>
+    </div>
+  </div>
+
+  <!-- Load the JS at the end so DOM elements exist -->
+  <script src="signup-auth.js" type="module"></script>
+</body>
+</html>

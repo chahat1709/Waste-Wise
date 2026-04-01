@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waste Wise</title>
+    <link rel="stylesheet" href="login-styles.css">
+
+    <!-- आपका मुख्य index.js स्क्रिप्ट -->
+    <script src="index.js" type="module" defer></script> 
+    
+    <!-- Language feature removed -->
+</head>
+<body>
+    <header class="header">
+        <h1 class="logo">Waste Wise</h1>
+    </header>
+    <main class="container">
+        <!-- Role selection section -->
+        <section id="role-selection" class="role-panel">
+            <h2>Select your role</h2>
+            <div class="buttons">
+                <button class="btn role-btn admin-btn" data-role="admin">Admin</button>
+                <button class="btn role-btn driver-btn" data-role="driver">Driver</button>
+            </div>
+        </section>
+
+        <!-- Admin login section -->
+        <section id="admin-login" class="login-panel hidden">
+            <h2>Admin Login</h2>
+            <form id="admin-login-form">
+                <label for="admin-email">ईमेल पता</label>
+                <input type="email" id="admin-email" class="input-field" placeholder="अपना ईमेल दर्ज करें" required>
+
+                <label for="admin-password">पासवर्ड</label>
+                <input type="password" id="admin-password" class="input-field" placeholder="अपना पासवर्ड दर्ज करें" required>
+
+                <button type="submit" class="btn submit-btn">Log In</button>
+            </form>
+            <p id="error-message" class="error hidden">अवैध ईमेल या पासवर्ड!</p>
+            <button class="btn back-btn" id="back-to-roles">← Back to roles</button>
+        </section>
+    </main>
+    <footer class="footer">
+        <p>&copy; 2025 Waste Wise | उद्देश्य के साथ निर्मित</p>
+    </footer>
+
+    <!-- Language feature removed -->
+
+    <!-- कस्टम मैसेज बॉक्स / मोडल HTML -->
+    <div id="messageBox" class="message-box">
+        <h3 id="messageBoxTitle"></h3>
+        <p id="messageBoxContent"></p>
+        <button id="messageBoxConfirmBtn">ठीक है</button>
+        <button id="messageBoxCancelBtn" class="cancel-btn hidden">रद्द करें</button>
+    </div>
+    <div id="overlay" class="overlay"></div>
+
+</body>
+</html>

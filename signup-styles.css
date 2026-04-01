@@ -1,0 +1,91 @@
+/* Overall Page Styling */
+body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(to right, #2e7d32, #1b5e20); /* Green gradient */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+  
+  /* Signup Page Container */
+  .signup-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+  }
+  
+  /* Signup Box */
+  .signup-container {
+    text-align: center;
+  }
+  
+  .signup-box {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    width: 350px;
+  }
+  
+  /* Logo */
+  .logo {
+    width: 80px;
+    margin-bottom: 10px;
+  }
+  
+  /* Input Fields */
+  input {
+    width: 90%;
+    padding: 12px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
+  /* Buttons */
+  button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-top: 10px;
+  }
+  
+  /* Signup Button */
+  .signup-btn {
+    background: #4CAF50;
+    color: white;
+    transition: 0.3s;
+  }
+  
+  .signup-btn:hover {
+    background: #388e3c;
+  }
+  
+  /* Google Signup Button */
+  .google-btn {
+    background: #db4437;
+    color: white;
+    transition: 0.3s;
+  }
+  
+  .google-btn:hover {
+    background: #c1351d;
+  }
+  
+  /* Signup Link */
+  p a {
+    color: #1565c0;
+    text-decoration: none;
+    font-weight: bold;
+  }
+  
+  p a:hover {
+    text-decoration: underline;
+  }
+  

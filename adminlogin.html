@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Waste Wise</title>
+    <link rel="stylesheet" href="login-styles.css">
+    <script src="adminlogin.js"></script>
+</head>
+<body>
+    <!-- Futuristic animated background (pure CSS) -->
+    <div class="bg-visual" aria-hidden="true"></div>
+    <div class="login-wrapper">
+        <div class="brand-panel">
+            <div class="clock" id="admin-clock" aria-hidden="false">--:--:--</div>
+            <h1>Admin Portal</h1>
+            <p>Secure access to Waste Wise management system. Monitor operations, manage routes, and optimize waste collection efficiency.</p>
+            <p class="small">Administrator access only. Contact your system administrator if you need credentials.</p>
+        </div>
+        <div class="login-panel" role="region" aria-label="Admin login form">
+            <div class="form-title">Admin Access</div>
+            <div class="form-sub">Sign in to manage the system</div>
+            <form id="admin-login-form" class="form-row" novalidate>
+                <label for="admin-email" class="small">Admin Email</label>
+                <input class="input" type="email" id="admin-email" placeholder="admin@company.com" required aria-required="true">
+
+                <label for="admin-password" class="small">Password</label>
+                <input class="input" type="password" id="admin-password" placeholder="Enter admin password" required aria-required="true">
+
+                <button class="btn btn-primary" type="submit">Admin Login</button>
+
+                <div class="footer-links">
+                    <a class="small" href="login.html">← Back to User Login</a>
+                    <a class="small" href="forgot-password.html">Forgot password?</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Interactive dust bins for playful UI: medium and large -->
+    <div class="bin-stage" aria-hidden="true">
+        <div class="bin bin-large" id="bin-large" data-size="large" title="Large bin" tabindex="0" role="button" aria-pressed="false">
+            <!-- simple bin SVG -->
+            <svg viewBox="0 0 64 64" width="120" height="140" aria-hidden="true">
+                <rect x="12" y="18" width="40" height="36" rx="3" fill="#e6f5ea" stroke="#2e7d32" stroke-width="2" />
+                <rect x="18" y="10" width="28" height="12" rx="2" fill="#dff3e4" stroke="#1b5e20" stroke-width="1.5" />
+                <circle cx="22" cy="34" r="3" fill="#c8e6c9" />
+                <circle cx="42" cy="34" r="3" fill="#c8e6c9" />
+                <!-- mouth for talking animation -->
+                <ellipse cx="32" cy="48" rx="8" ry="4" fill="#1b5e20" class="bin-mouth" />
+            </svg>
+            <div class="rps-overlay" aria-hidden="true"></div>
+            <div class="speech" aria-hidden="true"><span class="speech-text"></span></div>
+        </div>
+        <div class="bin bin-medium" id="bin-medium" data-size="medium" title="Medium bin" tabindex="0" role="button" aria-pressed="false">
+            <svg viewBox="0 0 64 64" width="90" height="110" aria-hidden="true">
+                <rect x="14" y="22" width="36" height="30" rx="3" fill="#f1fbf2" stroke="#2e7d32" stroke-width="2" />
+                <rect x="20" y="14" width="24" height="10" rx="2" fill="#e6f9e8" stroke="#1b5e20" stroke-width="1.5" />
+                <circle cx="26" cy="36" r="2.5" fill="#c8e6c9" />
+                <circle cx="38" cy="36" r="2.5" fill="#c8e6c9" />
+                <ellipse cx="32" cy="46" rx="6" ry="3" fill="#1b5e20" class="bin-mouth" />
+            </svg>
+            <div class="rps-overlay" aria-hidden="true"></div>
+            <div class="speech" aria-hidden="true"><span class="speech-text"></span></div>
+        </div>
+    </div>
+
+    <!-- Custom Message/Confirmation Modal HTML - REQUIRED FOR showMessageBox() -->
+    <div id="messageBox" class="message-box">
+        <h3 id="messageBoxTitle"></h3>
+        <p id="messageBoxContent"></p>
+        <button id="messageBoxConfirmBtn">OK</button>
+        <button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button>
+    </div>
+    <div id="overlay" class="overlay"></div>
+
+    <!-- Error message display -->
+    <p id="error-message" class="error hidden" style="position: fixed; top: 20px; right: 20px; background: var(--danger); color: white; padding: 12px 20px; border-radius: 8px; z-index: 10000;">Invalid admin credentials!</p>
+</body>
+</html>

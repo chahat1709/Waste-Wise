@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Waste Wise</title>
+    <link rel="stylesheet" href="login-styles.css">
+</head>
+<body>
+    <!-- Futuristic animated background (pure CSS) -->
+    <div class="bg-visual" aria-hidden="true"></div>
+    <div class="login-wrapper">
+        <div class="brand-panel">
+            <div class="clock" id="clock" aria-hidden="false">--:--:--</div>
+            <h1>Waste Wise</h1>
+            <p>Smart, sustainable waste collection — optimized for drivers and admins. Log in to continue.</p>
+            <p class="small">If you are a driver, use your company credentials. For admin access, contact your system administrator.</p>
+        </div>
+        <div class="login-panel" role="region" aria-label="Login form">
+            <div class="form-title">Welcome back</div>
+            <div class="form-sub">Sign in to manage routes and collections</div>
+            <form id="login-form" class="form-row" novalidate>
+                <label for="login-email" class="small">Email</label>
+                <input class="input" type="email" id="login-email" placeholder="you@company.com" required aria-required="true">
+
+                <label for="login-password" class="small">Password</label>
+                <input class="input" type="password" id="login-password" placeholder="Enter your password" required aria-required="true">
+
+                <button class="btn btn-primary" type="submit">Login</button>
+
+                <button class="btn btn-google" type="button" id="google-login"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle"><path d="M21.35 11.1H12v2.8h5.45c-.24 1.34-1.2 2.48-2.56 3.16v2.62h4.14c2.42-2.23 3.82-5.51 3.82-9.58 0-.7-.07-1.38-.18-2.03z" fill="#4285F4"></path><path d="M12 22c2.7 0 4.97-.9 6.63-2.45l-4.14-2.62C14.02 17 13.07 17.4 12 17.4c-2.46 0-4.54-1.66-5.29-3.88H2.46v2.43C4.1 19.9 7.75 22 12 22z" fill="#34A853"></path><path d="M6.71 12.52c-.2-.6-.32-1.24-.32-1.9 0-.66.12-1.3.32-1.9V6.29H2.46A9.99 9.99 0 002 12.62c0 1.6.34 3.12.95 4.45l3.76-2.55z" fill="#FBBC05"></path><path d="M12 6.4c1.47 0 2.78.5 3.82 1.47l2.86-2.86C16.98 3.5 14.7 2.6 12 2.6 7.75 2.6 4.1 4.7 2.46 7.9l3.76 2.43C7.46 8.06 9.54 6.4 12 6.4z" fill="#EA4335"></path></svg>
+                    <span style="vertical-align:middle">Sign in with Google</span>
+                </button>
+
+                <div class="footer-links">
+                    <a class="small" href="forgot-password.html">Forgot password?</a>
+                    <a class="small" href="signup.html">Create account</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Interactive dust bins for playful UI: medium and large -->
+    <div class="bin-stage" aria-hidden="true">
+        <div class="bin bin-large" id="bin-large" data-size="large" title="Large bin" tabindex="0" role="button" aria-pressed="false">
+            <!-- simple bin SVG -->
+            <svg viewBox="0 0 64 64" width="120" height="140" aria-hidden="true">
+                <rect x="12" y="18" width="40" height="36" rx="3" fill="#e6f5ea" stroke="#2e7d32" stroke-width="2" />
+                <rect x="18" y="10" width="28" height="12" rx="2" fill="#dff3e4" stroke="#1b5e20" stroke-width="1.5" />
+                <circle cx="22" cy="34" r="3" fill="#c8e6c9" />
+                <circle cx="42" cy="34" r="3" fill="#c8e6c9" />
+                <!-- mouth for talking animation -->
+                <ellipse cx="32" cy="48" rx="8" ry="4" fill="#1b5e20" class="bin-mouth" />
+            </svg>
+            <div class="rps-overlay" aria-hidden="true"></div>
+            <div class="speech" aria-hidden="true"><span class="speech-text"></span></div>
+        </div>
+        <div class="bin bin-medium" id="bin-medium" data-size="medium" title="Medium bin" tabindex="0" role="button" aria-pressed="false">
+            <svg viewBox="0 0 64 64" width="90" height="110" aria-hidden="true">
+                <rect x="14" y="22" width="36" height="30" rx="3" fill="#f1fbf2" stroke="#2e7d32" stroke-width="2" />
+                <rect x="20" y="14" width="24" height="10" rx="2" fill="#e6f9e8" stroke="#1b5e20" stroke-width="1.5" />
+                <circle cx="26" cy="36" r="2.5" fill="#c8e6c9" />
+                <circle cx="38" cy="36" r="2.5" fill="#c8e6c9" />
+                <ellipse cx="32" cy="46" rx="6" ry="3" fill="#1b5e20" class="bin-mouth" />
+            </svg>
+            <div class="rps-overlay" aria-hidden="true"></div>
+            <div class="speech" aria-hidden="true"><span class="speech-text"></span></div>
+        </div>
+    </div>
+
+    <!-- Custom Message/Confirmation Modal HTML - REQUIRED FOR showMessageBox() -->
+    <div id="messageBox" class="message-box">
+        <h3 id="messageBoxTitle"></h3>
+        <p id="messageBoxContent"></p>
+        <button id="messageBoxConfirmBtn">OK</button>
+        <button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button>
+    </div>
+    <div id="overlay" class="overlay"></div>
+
+   <script src="login-auth.js" type="module"></script> <!-- Separate auth.js for login -->
+</body>
+</html>

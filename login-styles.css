@@ -1,0 +1,92 @@
+/* Clean, modern Waste Wise login styles */
+:root{
+  --primary:#2e7d32; /* green */
+  --primary-dark:#1b5e20;
+  --accent:#4caf50;
+  --muted:#6b7280;
+  --bg:#e8f5e9;
+  --card:#ffffff;
+  --danger:#db4437;
+  --fx-1: rgba(46,125,50,0.12);
+  --fx-2: rgba(76,175,80,0.06);
+  --fx-accent: rgba(76,175,80,0.18);
+}
+*{box-sizing:border-box}
+body{
+  font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: linear-gradient(180deg, var(--bg), #f8fff8);
+  margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+}
+
+/* Futuristic animated background layer */
+.bg-visual{position:fixed;inset:0;z-index:0;pointer-events:none;background: radial-gradient(ellipse at 10% 20%, rgba(40,125,60,0.12), transparent 10%), radial-gradient(ellipse at 90% 80%, rgba(60,180,90,0.08), transparent 12%);mix-blend-mode:screen}
+.bg-visual::before{content:"";position:absolute;inset:0;opacity:0.5;background-image:linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);background-size:40px 40px,40px 40px;transform: translateZ(0);animation:gridShift 12s linear infinite}
+.bg-visual::after{content:"";position:absolute;left:-30%;top:0;width:160%;height:160%;background:linear-gradient(120deg, transparent 0%, rgba(76,175,80,0.06) 45%, rgba(255,255,255,0.06) 50%, rgba(76,175,80,0.06) 55%, transparent 100%);transform: rotate(-18deg);animation:scan 6s ease-in-out infinite}
+
+@keyframes gridShift{from{background-position:0 0,0 0}to{background-position:80px 80px,80px 80px}}
+@keyframes scan{0%{transform:translateX(-25%) rotate(-18deg)}50%{transform:translateX(5%) rotate(-18deg)}100%{transform:translateX(-25%) rotate(-18deg)}}
+.login-wrapper{width:100%;max-width:920px;display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center;position:relative;z-index:2}
+.login-panel{background:linear-gradient(180deg, rgba(255,255,255,0.85), rgba(250,255,250,0.7));backdrop-filter: blur(6px);border-radius:16px;padding:36px;box-shadow:0 12px 40px rgba(16,24,40,0.08);position:relative;z-index:2}
+.brand-panel{display:flex;flex-direction:column;gap:18px;align-items:flex-start;color:var(--primary-dark);padding:36px;position:relative;z-index:2}
+/* small mono clock in brand panel */
+.brand-panel .clock{position:absolute;right:28px;top:20px;background:rgba(20,40,20,0.06);padding:8px 14px;border-radius:10px;font-weight:700;color:var(--primary-dark);font-family:monospace;box-shadow:0 6px 18px rgba(16,24,40,0.06)}
+.brand-panel h1{font-size:28px;margin:0}
+.brand-panel p{color:var(--muted);line-height:1.45}
+.form-title{font-size:20px;color:var(--primary-dark);margin-bottom:6px}
+.form-sub{color:var(--muted);font-size:14px;margin-bottom:18px}
+.form-row{display:flex;flex-direction:column;gap:12px}
+.input{padding:14px 16px;border-radius:10px;border:1px solid #e6e9ef;font-size:15px}
+.btn{padding:12px 16px;border-radius:10px;border:0;font-weight:600;cursor:pointer}
+.btn-primary{background:linear-gradient(90deg,var(--primary),var(--accent));color:#fff;box-shadow:0 8px 20px rgba(46,125,50,0.12)}
+.btn-primary:hover{transform:translateY(-2px)}
+.btn-google{background:transparent;border:1px solid #e6e9ef;color:var(--danger);display:flex;align-items:center;gap:10px}
+.small{font-size:13px;color:var(--muted)}
+.footer-links{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+@media (max-width:900px){.login-wrapper{grid-template-columns:1fr;}}
+/* modal/message box */
+.message-box{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);padding:22px;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.12);z-index:9999;display:none}
+.message-box.show{display:block}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none}
+.overlay.show{display:block}
+
+/* subtle hover for inputs */
+.input:focus{outline: none; box-shadow: 0 6px 18px rgba(76,175,80,0.08); border-color: rgba(76,175,80,0.18)}
+
+/* small responsive adjustments for clock */
+@media (max-width:700px){.brand-panel .clock{position:static;margin-left:auto;margin-right:0;order:-1}}
+
+/* Bin stage: interactive elements that react to cursor/tap */
+.bin-stage{position:fixed;left:50%;bottom:8vh;transform:translateX(-50%);width:620px;height:220px;pointer-events:none;z-index:3}
+.bin{position:absolute;bottom:0;transition:transform 180ms ease-out;pointer-events:auto;cursor:pointer;display:flex;align-items:flex-end;justify-content:center}
+.bin svg{display:block;filter:drop-shadow(0 10px 18px rgba(16,24,40,0.12));transition:transform 220ms cubic-bezier(.2,.9,.2,1)}
+.bin-large{left:60%;transform:translate(-60%,0)}
+.bin-medium{left:20%;transform:translate(-20%,0)}
+.bin:active svg{transform: translateY(-6px) scale(0.98)}
+.bin .rps-overlay{position:absolute;left:50%;top:6px;transform:translateX(-50%);min-width:44px;height:44px;border-radius:22px;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;font-weight:700;color:#1b5e20;font-family:monospace;box-shadow:0 8px 20px rgba(46,125,50,0.12);opacity:0;transition:opacity 220ms, transform 220ms}
+.bin.show-rps .rps-overlay{opacity:1;transform:translateX(-50%) translateY(-6px)}
+
+/* speech bubble */
+.bin .speech{position:absolute;left:50%;top:-42px;transform:translateX(-50%);max-width:220px;background:linear-gradient(180deg,#ffffff,#f1fff1);border-radius:12px;padding:8px 10px;box-shadow:0 8px 20px rgba(16,24,40,0.12);opacity:0;pointer-events:none;transition:opacity 180ms, transform 180ms}
+.bin .speech .speech-text{color:#133b23;font-size:13px;font-weight:600}
+.bin.talking .speech{opacity:1;transform:translateX(-50%) translateY(-6px)}
+
+/* mouth talking animation (scale Y) */
+.bin .bin-mouth{transform-origin:center center;transition:transform 140ms ease}
+.bin.talking .bin-mouth{animation: mouthTalk 360ms steps(2) infinite}
+@keyframes mouthTalk{0%{transform:scaleY(1)}50%{transform:scaleY(0.45)}100%{transform:scaleY(1)}}
+
+/* win/lose animations */
+.bin.win svg{transform: translateY(-10px) scale(1.03);box-shadow:0 18px 36px rgba(46,125,50,0.14)}
+.bin.lose svg{transform: translateY(6px) rotate(-6deg) scale(0.98);filter:grayscale(0.25) brightness(0.9)}
+
+/* accessible focus */
+.bin:focus{outline:2px solid rgba(76,175,80,0.22);outline-offset:6px}
+
+/* result badges for rock/paper/scissors */
+.rps-rock{width:28px;height:28px;border-radius:6px;background:#c8e6c9;display:flex;align-items:center;justify-content:center}
+.rps-paper{width:28px;height:28px;border-radius:6px;background:#dff3e4;display:flex;align-items:center;justify-content:center}
+.rps-scissors{width:28px;height:28px;border-radius:6px;background:#fbe9e7;display:flex;align-items:center;justify-content:center}
+
+/* tooltip for result */
+.bin .rps-tooltip{position:absolute;left:50%;top:-36px;transform:translateX(-50%);background:rgba(32,50,30,0.95);color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;opacity:0;transition:opacity 220ms;pointer-events:none}
+.bin.show-tooltip .rps-tooltip{opacity:1}

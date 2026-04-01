@@ -1,0 +1,333 @@
+/* 🌟 Global Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+  transition: all 0.3s ease-in-out;
+}
+
+body {
+  background: linear-gradient(135deg, #e0f2f1, #b2dfdb);
+  color: #333;
+}
+
+/* 🔥 Top Navigation Bar */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 40px;
+  background: linear-gradient(135deg, #388e3c, #1b5e20);
+  color: white;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  border-radius: 0 0 15px 15px;
+}
+
+.branding .title {
+  font-size: 28px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+/* 🔹 Navbar */
+.nav-links {
+  list-style: none;
+  display: flex;
+  gap: 20px;
+}
+
+.nav-links li {
+  display: inline;
+}
+
+.nav-links a {
+  color: white;
+  text-decoration: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.nav-links a:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+/* 🔥 Logout Button */
+.logout-btn {
+  background: #ff3d00;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  background: #d32f2f;
+  transform: scale(1.05);
+}
+
+/* Language feature removed */
+
+/* 📌 Section Styling */
+.section {
+  max-width: 80%;
+  margin: 50px auto;
+  padding: 40px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  text-align: center;
+  animation: fadeIn 1s ease-in-out;
+  display: none; /* Hide all sections by default */
+}
+
+.section.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ✅ Add Bin Button */
+.add-bin-btn {
+  background: linear-gradient(135deg, #43a047, #1b5e20);
+  color: white;
+  padding: 12px 18px;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 16px;
+  margin-top: 15px;
+}
+
+.add-bin-btn:hover {
+  background: linear-gradient(135deg, #1b5e20, #43a047);
+  transform: scale(1.05);
+}
+
+/* ✅ Add Bin Form */
+.bin-form-container {
+  display: none;
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.bin-form-container input {
+  width: 70%;
+  padding: 10px;
+  border: 2px solid #2e7d32;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.submit-bin-btn {
+  background: linear-gradient(135deg, #1976d2, #0d47a1);
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 16px;
+  margin-left: 10px;
+}
+
+.submit-bin-btn:hover {
+  background: linear-gradient(135deg, #0d47a1, #1976d2);
+  transform: scale(1.05);
+}
+
+/* ✅ Bin Table */
+.bin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.bin-table th, .bin-table td {
+  border: 1px solid #ddd;
+  padding: 12px;
+  text-align: center;
+}
+
+.bin-table th {
+  background: #2e7d32;
+  color: white;
+}
+
+/* 📧 Contact Form Styling */
+.contact-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.contact-form {
+  width: 50%;
+  padding: 30px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  transition: 0.3s;
+}
+
+.contact-form:hover {
+  transform: scale(1.02);
+}
+
+.input-group {
+  margin-bottom: 18px;
+}
+
+.input-group label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 6px;
+  color: #2e7d32;
+}
+
+.input-group input,
+.input-group textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #2e7d32;
+  border-radius: 10px;
+  font-size: 16px;
+}
+
+.input-group input:focus,
+.input-group textarea:focus {
+  outline: none;
+  border-color: #66bb6a;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
+}
+
+.contact-submit-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #43a047, #1b5e20);
+  color: white;
+  border: none;
+  font-size: 18px;
+  font-weight: bold;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.contact-submit-btn:hover {
+  background: linear-gradient(135deg, #1b5e20, #43a047);
+  transform: scale(1.05);
+}
+
+/* ✅ Inline feedback for contact form */
+.contact-feedback {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  width: 100%;
+  box-sizing: border-box;
+}
+.contact-feedback.success {
+  background: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+  border: 1px solid rgba(46,125,50,0.18);
+}
+.contact-feedback.error {
+  background: rgba(211, 47, 47, 0.08);
+  color: #d32f2f;
+  border: 1px solid rgba(211,47,47,0.12);
+}
+
+/* 📌 Big Tab for Area Bin */
+.area-bin-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.area-bin-tab {
+  background: linear-gradient(135deg, #388e3c, #1b5e20);
+  color: white;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+}
+
+.area-bin-tab:hover {
+  background: linear-gradient(135deg, #1b5e20, #388e3c);
+  transform: scale(1.08);
+}
+
+.area-bin-tab.active {
+  background: linear-gradient(135deg, #ffeb3b, #fbc02d);
+  color: #333;
+  transform: scale(1.1);
+}
+
+/* ===== Smart Route Specific ===== */
+.smart-route-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 18px;
+  align-items: start;
+  margin-top: 18px;
+  text-align: left;
+}
+.sr-panel {
+  background: linear-gradient(180deg, #ffffff, #f7fff7);
+  border: 1px solid rgba(34,197,94,0.08);
+  padding: 14px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+}
+.sr-controls h3 { color: #1b5e20; margin-bottom: 8px; }
+.sr-row { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+.sr-row label { min-width:120px; font-weight:600; color:#2e7d32; }
+.sr-row input[type="number"], .sr-row select { flex:1; padding:8px 10px; border-radius:8px; border:1px solid #ddd; }
+.sr-bins-list { max-height: 360px; overflow:auto; padding:6px; border-radius:8px; border:1px solid #eee; background:#fff; }
+.sr-bin-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #f2f2f2; }
+.sr-bin-item:last-child { border-bottom:none; }
+.sr-bin-item .meta { font-size:13px; color:#555; }
+.sr-actions { display:flex; gap:8px; margin-top:12px; }
+.sr-btn { padding:10px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:700; }
+.sr-btn.primary { background: linear-gradient(135deg,#2e7d32,#1b5e20); color:white; }
+.sr-btn.ghost { background:transparent; border:1px solid #2e7d32; color:#2e7d32; }
+.sr-summary { margin-top:12px; padding:10px; background:#fafafa; border-radius:8px; font-size:14px; }
+.sr-note { font-size:12px; color:#666; margin-top:8px; }
+
+@media (max-width: 900px) {
+  .smart-route-grid { grid-template-columns: 1fr; }
+  .sr-bins-list { max-height: 240px; }
+}
+
+/* ✅ Responsive Design */
+@media (max-width: 768px) {
+  .top-bar {
+    flex-direction: column;
+    text-align: center;
+  }
+  .nav-links {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .contact-form {
+    width: 90%;
+  }
+}

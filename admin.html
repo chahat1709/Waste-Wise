@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waste Wise - Admin Portal</title>
+    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <i class="fas fa-recycle"></i>
+                <h1>Waste Wise Admin</h1>
+            </div>
+            <div class="header-actions">
+                <div class="user-info">
+                    <i class="fas fa-user-shield"></i>
+                    <span id="adminName">Administrator</span>
+                </div>
+                <button class="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Sidebar -->
+    <nav class="sidebar">
+        <ul class="nav-menu">
+            <li class="nav-item active" data-section="overview">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Overview</span>
+            </li>
+            <li class="nav-item" data-section="users">
+                <i class="fas fa-users"></i>
+                <span>User Management</span>
+            </li>
+            <li class="nav-item" data-section="bins">
+                <i class="fas fa-trash"></i>
+                <span>Bin Management</span>
+            </li>
+            <li class="nav-item" data-section="routes">
+                <i class="fas fa-route"></i>
+                <span>Route Analytics</span>
+            </li>
+            <li class="nav-item" data-section="monitoring">
+                <i class="fas fa-chart-line"></i>
+                <span>System Monitoring</span>
+            </li>
+            <li class="nav-item" data-section="settings">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Overview Section -->
+        <section id="overview" class="content-section active">
+            <h2>System Overview</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalUsers">0</h3>
+                        <p>Total Users</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-trash"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalBins">0</h3>
+                        <p>Total Bins</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-truck"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="activeRoutes">0</h3>
+                        <p>Active Routes</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="alertCount">0</h3>
+                        <p>Active Alerts</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card">
+                    <h3>Collection Trends</h3>
+                    <canvas id="collectionChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Bin Fill Levels</h3>
+                    <canvas id="fillLevelChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- User Management Section -->
+        <section id="users" class="content-section">
+            <h2>User Management</h2>
+            <div class="section-actions">
+                <button class="btn btn-primary" onclick="openAddUserModal()">
+                    <i class="fas fa-plus"></i> Add User
+                </button>
+                <div class="search-box">
+                    <input type="text" id="userSearch" placeholder="Search users...">
+                    <i class="fas fa-search"></i>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Users will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Bin Management Section -->
+        <section id="bins" class="content-section">
+            <h2>Bin Management</h2>
+            <div class="section-actions">
+                <button class="btn btn-primary" onclick="openAddBinModal()">
+                    <i class="fas fa-plus"></i> Add Bin
+                </button>
+                <button class="btn btn-secondary" onclick="exportBinData()">
+                    <i class="fas fa-download"></i> Export Data
+                </button>
+            </div>
+
+            <div class="bins-grid">
+                <div class="bin-filters">
+                    <h3>Filters</h3>
+                    <div class="filter-group">
+                        <label>Status:</label>
+                        <select id="statusFilter">
+                            <option value="">All</option>
+                            <option value="active">Active</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="offline">Offline</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Fill Level:</label>
+                        <select id="fillFilter">
+                            <option value="">All</option>
+                            <option value="low">Low (0-30%)</option>
+                            <option value="medium">Medium (31-70%)</option>
+                            <option value="high">High (71-100%)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bins-list">
+                    <div id="binsContainer" class="bins-container">
+                        <!-- Bins will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Route Analytics Section -->
+        <section id="routes" class="content-section">
+            <h2>Route Analytics</h2>
+            <div class="route-controls">
+                <div class="date-range">
+                    <input type="date" id="routeStartDate">
+                    <span>to</span>
+                    <input type="date" id="routeEndDate">
+                    <button class="btn btn-primary" onclick="updateRouteAnalytics()">Update</button>
+                </div>
+                <button class="btn btn-secondary" onclick="optimizeAllRoutes()">
+                    <i class="fas fa-magic"></i> Optimize All Routes
+                </button>
+            </div>
+
+            <div class="route-stats">
+                <div class="route-stat">
+                    <h3 id="avgRouteDistance">0 km</h3>
+                    <p>Average Route Distance</p>
+                </div>
+                <div class="route-stat">
+                    <h3 id="totalCollections">0</h3>
+                    <p>Total Collections</p>
+                </div>
+                <div class="route-stat">
+                    <h3 id="fuelSaved">0 L</h3>
+                    <p>Fuel Saved</p>
+                </div>
+                <div class="route-stat">
+                    <h3 id="timeSaved">0 hrs</h3>
+                    <p>Time Saved</p>
+                </div>
+            </div>
+
+            <div class="routes-table-container">
+                <table id="routesTable">
+                    <thead>
+                        <tr>
+                            <th>Route ID</th>
+                            <th>Driver</th>
+                            <th>Distance</th>
+                            <th>Bins</th>
+                            <th>Status</th>
+                            <th>Efficiency</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Routes will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- System Monitoring Section -->
+        <section id="monitoring" class="content-section">
+            <h2>System Monitoring</h2>
+            <div class="monitoring-grid">
+                <div class="monitor-card">
+                    <h3>System Health</h3>
+                    <div class="health-indicators">
+                        <div class="indicator">
+                            <span>API Server</span>
+                            <div class="status-indicator online"></div>
+                        </div>
+                        <div class="indicator">
+                            <span>Database</span>
+                            <div class="status-indicator online"></div>
+                        </div>
+                        <div class="indicator">
+                            <span>Map Service</span>
+                            <div class="status-indicator online"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="monitor-card">
+                    <h3>Performance Metrics</h3>
+                    <canvas id="performanceChart"></canvas>
+                </div>
+
+                <div class="monitor-card">
+                    <h3>Recent Alerts</h3>
+                    <div id="alertsList" class="alerts-list">
+                        <!-- Alerts will be populated here -->
+                    </div>
+                </div>
+
+                <div class="monitor-card">
+                    <h3>System Logs</h3>
+                    <div id="logsContainer" class="logs-container">
+                        <!-- Logs will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settings" class="content-section">
+            <h2>System Settings</h2>
+            <div class="settings-container">
+                <div class="setting-group">
+                    <h3>General Settings</h3>
+                    <div class="setting-item">
+                        <label>System Name:</label>
+                        <input type="text" id="systemName" value="Waste Wise System">
+                    </div>
+                    <div class="setting-item">
+                        <label>Admin Email:</label>
+                        <input type="email" id="adminEmail" value="admin@wastewise.com">
+                    </div>
+                    <div class="setting-item">
+                        <label>Time Zone:</label>
+                        <select id="timezone">
+                            <option value="UTC">UTC</option>
+                            <option value="IST">Indian Standard Time</option>
+                            <option value="EST">Eastern Standard Time</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <h3>Route Optimization</h3>
+                    <div class="setting-item">
+                        <label>Default Vehicle Capacity:</label>
+                        <input type="number" id="vehicleCapacity" value="100">
+                    </div>
+                    <div class="setting-item">
+                        <label>Max Route Distance (km):</label>
+                        <input type="number" id="maxRouteDistance" value="50">
+                    </div>
+                    <div class="setting-item">
+                        <label>Optimization Algorithm:</label>
+                        <select id="optimizationAlgorithm">
+                            <option value="lns">Large Neighborhood Search</option>
+                            <option value="ortools">OR-Tools</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <h3>Notifications</h3>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="emailNotifications" checked>
+                            Email Notifications
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="smsNotifications">
+                            SMS Notifications
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label>Alert Threshold (%):</label>
+                        <input type="number" id="alertThreshold" value="80" min="0" max="100">
+                    </div>
+                </div>
+
+                <div class="setting-actions">
+                    <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+                    <button class="btn btn-secondary" onclick="resetSettings()">Reset to Default</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modals -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <h3>Add New User</h3>
+            <form id="addUserForm">
+                <div class="form-group">
+                    <label>Name:</label>
+                    <input type="text" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Role:</label>
+                    <select name="role" required>
+                        <option value="driver">Driver</option>
+                        <option value="admin">Admin</option>
+                        <option value="supervisor">Supervisor</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Password:</label>
+                    <input type="password" name="password" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Add User</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addUserModal')">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="addBinModal" class="modal">
+        <div class="modal-content">
+            <h3>Add New Bin</h3>
+            <form id="addBinForm">
+                <div class="form-group">
+                    <label>Location:</label>
+                    <input type="text" name="location" required>
+                </div>
+                <div class="form-group">
+                    <label>Latitude:</label>
+                    <input type="number" step="any" name="latitude" required>
+                </div>
+                <div class="form-group">
+                    <label>Longitude:</label>
+                    <input type="number" step="any" name="longitude" required>
+                </div>
+                <div class="form-group">
+                    <label>Capacity (L):</label>
+                    <input type="number" name="capacity" value="100" required>
+                </div>
+                <div class="form-group">
+                    <label>WiFi SSID:</label>
+                    <input type="text" name="ssid">
+                </div>
+                <div class="form-group">
+                    <label>WiFi Password:</label>
+                    <input type="password" name="wifiPassword">
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Add Bin</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addBinModal')">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <div class="toast-content">
+            <i class="fas fa-check-circle"></i>
+            <span id="toastMessage">Operation successful!</span>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

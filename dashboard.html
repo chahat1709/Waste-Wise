@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/235/235861.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waste Wise Driver Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- EmailJS SDK - Required for contact form -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+    <!-- Language feature removed -->
+</head>
+<body>
+    <header class="top-bar">
+        <div class="branding">
+            <h1 class="title"><i class="fas fa-recycle"></i> Waste Wise</h1>
+        </div>
+        <nav class="navbar">
+            <ul class="nav-links">
+                <li><a href="#" data-section="home"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="#" data-section="area-bin"><i class="fas fa-map"></i> Area Bin</a></li>
+                <li><a href="#" data-section="alerts"><i class="fas fa-bell"></i> Alerts</a></li>
+                <li><a href="#" data-section="smart-route"><i class="fas fa-route"></i> Smart Route</a></li>
+                <li><a href="#" data-section="contact"><i class="fas fa-envelope"></i> Contact Us</a></li>
+                <!-- language button removed -->
+            </ul>
+            <button id="logoutButton" class="logout-btn"><i class="fas fa fa-sign-out-alt"></i> Logout</button>
+        </nav>
+    </header>
+
+    <div class="main-content-area">
+        <!-- Loader and Error Container (Hidden by default, shown by JS) -->
+        <p id="loader" style="display: none;">Loading...</p>
+        <p id="errorContainer" style="display: none;"></p>
+
+        <!-- Dynamic Welcome Message -->
+        <h2 id="welcomeMessage" style="text-align: center; color: #2c3e50;">Welcome to Waste Wise Dashboard</h2>
+
+        <!-- Sections -->
+        <div id="home" class="section" style="display: block;">
+            <h2>Welcome to <span style="color:#2e7d32;">Waste Wise</span></h2>
+            <p>Monitor waste bins, optimize routes, and track alerts in real-time.</p>
+        </div>
+
+        <!-- Area Bin Section -->
+        <div id="area-bin" class="section" style="display: none;">
+            <h2>Area Bin Overview</h2>
+            <p id="noBinMessage" style="display: none; color: red; font-weight: bold;">🚫 No Bins Available</p>
+            
+            <table id="binTable" class="bin-table">
+                <thead>
+                    <tr>
+                        <th>Bin ID</th>
+                        <th>Location</th>
+                        <th>Fullness (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="binTableBody">
+                    <!-- Rows will be dynamically populated -->
+                    <tr><td colspan="3">Loading bins...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Alerts Section -->
+        <div id="alerts" class="section" style="display: none;">
+            <h2>Alerts</h2>
+            <div id="alertsContainer">
+                <ul id="alertsList" style="list-style:none;padding:0;margin:0;">
+                    <!-- Alerts will be appended here -->
+                </ul>
+            </div>
+            <div id="noAlertsMessage">No new alerts available.</div>
+        </div>
+
+        <!-- Smart Route Section (clean map-focused UI) -->
+        <div id="smart-route" class="section" style="display: none;">
+            <h2>Smart Route</h2>
+            <p>Map shows your assigned route when available; otherwise nearby bins with fullness and hazard indicators.</p>
+            <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+                <button id="startRouteBtn" class="btn submit-btn">▶ Start Route</button>
+                <button id="stopRouteBtn" class="btn cancel-btn" style="display:none;">■ Stop Route</button>
+                <button id="refreshRouteBtn" class="btn" title="Refresh assigned route">⟳ Refresh</button>
+                <button id="computeRouteBtn" class="btn" title="Compute optimized smart route">⚡ Compute Smart Route</button>
+            </div>
+
+            <p id="routeLoader" style="display: none; text-align: center; margin-top: 12px;">Loading route...</p>
+            <div id="routeResult" style="margin-top: 12px; text-align: left; white-space: pre-wrap; font-size: 0.95em; color: #333;"></div>
+
+            <div class="smart-route-grid">
+                <div class="sr-panel sr-controls">
+                    <h3>Smart Route Controls</h3>
+                    <div class="sr-row">
+                        <label>Vehicle count</label>
+                        <input id="srVehicleCount" type="number" min="1" value="2">
+                    </div>
+                    <div class="sr-row">
+                        <label>Vehicle capacity</label>
+                        <input id="srVehicleCap" type="number" min="1" value="10">
+                    </div>
+                    <div class="sr-row">
+                        <label>Start location</label>
+                        <button id="srUseMyLocation" class="sr-btn ghost">Use my location</button>
+                    </div>
+
+                    <h4 style="margin-top:12px;">Nearby Bins</h4>
+                    <div id="srBinsList" class="sr-bins-list">
+                        <div style="padding:12px;color:#666;">Loading nearby bins...</div>
+                    </div>
+
+                    <div class="sr-actions">
+                        <button id="computeSmartRouteBtn" class="sr-btn primary">⚡ Compute</button>
+                        <button id="assignRouteBtn" class="sr-btn ghost">📤 Assign</button>
+                        <button id="clearSelectionBtn" class="sr-btn">Clear</button>
+                    </div>
+
+                    <div id="srSummary" class="sr-summary">Selected: 0 bins · Estimated vehicles: 0</div>
+                    <div class="sr-note">Select bins from the list and press Compute to optimize. Assign will store the created route(s) to the server.</div>
+                </div>
+
+                <div>
+                    <!-- Map display for route (Leaflet) -->
+                    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                    <div id="routeMap" style="height:520px; width:100%; margin-top:0px; border-radius:8px; overflow:hidden;"></div>
+                    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                </div>
+            </div>
+
+            <!-- Simple legend -->
+            <div style="margin-top:8px; display:flex; gap:12px; align-items:center; font-size:0.95em;">
+                <div><img src="https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png" style="height:18px;"> &nbsp; Normal</div>
+                <div><img src="https://maps.gstatic.com/mapfiles/ms2/micons/yellow-dot.png" style="height:18px;"> &nbsp; >=50%</div>
+                <div><img src="https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png" style="height:18px;"> &nbsp; >=80%</div>
+                <div><img src="https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png" style="height:18px;"> &nbsp; Hazard / High Temp 🔥</div>
+            </div>
+        </div>
+
+        <!-- Contact Us Section -->
+        <div id="contact" class="section" style="display: none;">
+            <h2>Contact Us</h2>
+            <form id="contactForm" class="contact-form" novalidate>
+                <div class="input-group">
+                    <label for="name">Your Name:</label>
+                    <input type="text" id="name" name="name" placeholder="Enter your name" required aria-required="true" />
+                </div>
+
+                <div class="input-group">
+                    <label for="email">Your Email:</label>
+                    <input type="email" id="email" name="email" placeholder="Enter your email" required aria-required="true" />
+                </div>
+
+                <div class="input-group">
+                    <label for="subject">Subject:</label>
+                    <input type="text" id="subject" name="subject" placeholder="Subject of your message" required />
+                </div>
+
+                <div class="input-group">
+                    <label for="message">Message:</label>
+                    <textarea id="message" name="message" placeholder="Your message here" rows="5" required></textarea>
+                </div>
+
+                <div class="input-group">
+                    <button type="submit" id="contactSubmitBtn" class="contact-submit-btn">Send Message</button>
+                </div>
+
+                <div id="contactFeedback" class="contact-feedback" role="status" aria-live="polite" style="display:none;"></div>
+            </form>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>&copy; 2025 Waste Wise | All rights reserved</p>
+    </footer>
+
+    <!-- Custom Message/Confirmation Modal HTML - REQUIRED FOR showMessageBox() -->
+    <div id="messageBox" class="message-box">
+        <h3 id="messageBoxTitle"></h3>
+        <p id="messageBoxContent"></p>
+        <button id="messageBoxConfirmBtn">OK</button>
+        <button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button>
+    </div>
+    <div id="overlay" class="overlay"></div>
+
+    <!-- Language feature removed -->
+
+    <!-- Your JavaScript files must be linked HERE, at the end of the body -->
+    <!-- Socket.IO client for realtime notifications -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script type="module" src="dashboard.js" defer></script>
+    <!-- Assuming your EmailJS script for the contact form is in contact-us.js -->
+    <script type="module" src="contact-us.js" defer></script> 
+</body>
+</html>

@@ -1,0 +1,131 @@
+
+
+/* General Styling */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    margin: 0;
+    padding: 20px;
+    color: #2d3748;
+}
+
+/* Header */
+h2 {
+    font-size: 1.6rem;
+    color: #1a202c;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+/* Bin Details Section */
+#binDetails {
+    background: #ffffff;
+    padding: 20px;
+    margin: 10px auto;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+#binDetails p {
+    font-size: 0.9rem;
+    color: #4a5568;
+    line-height: 1.5;
+    margin: 5px 0;
+}
+
+#binDetails span {
+    font-weight: bold;
+    color: #38a169;
+}
+
+/* Gauges Section */
+.gauge-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+canvas {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+    width: 100px;
+    height: 100px;
+}
+
+/* Back Button */
+.back-button {
+    display: block;
+    margin: 20px auto;
+    padding: 10px 25px;
+    background: #2d3748;
+    color: #ffffff;
+    text-align: center;
+    text-decoration: none;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    font-weight: bold;
+    border-radius: 6px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+.back-button:hover {
+    background: #4a5568;
+    transform: translateY(-2px);
+}
+
+/* Table Styling */
+table {
+    width: 100%;
+    margin: 20px auto;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+tr:hover {
+    background-color: #edf2f7;
+    cursor: pointer;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+    canvas {
+        width: 80px;
+        height: 80px;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+
+    .back-button {
+        font-size: 0.85rem;
+        padding: 8px 20px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    canvas {
+        width: 70px;
+        height: 70px;
+    }
+
+    h2 {
+        font-size: 1.4rem;
+    }
+
+    .back-button {
+        font-size: 0.75rem;
+        padding: 6px 18px;
+    }
+}
