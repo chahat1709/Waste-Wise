@@ -1,6 +1,9 @@
 # Smart Logistics & Routing Dashboard
 
-> **Status:** Active R&D / Architecture Prototype
+- **Status:** 🚧 Active R&D
+- **Research Problem:** Monolithic solvers for CVRP execute as blocking batch-jobs, incapable of adapting dynamically to real-time IoT trigger events.
+- **Working Hypothesis:** An event-driven architecture coupling a Python LNS heuristic directly to a Socket.IO real-time event bus will enable near-instantaneous stateful fleet rerouting.
+- **Research Goal:** Reduce dynamic fleet rerouting latency by >85% compared to traditional Chron-job implementations.
 
 A full-stack waste management and logistics platform featuring a mathematically complex **Capacitated Vehicle Routing Problem (CVRP)** solver integrated with real-time IoT monitoring, Firebase authentication, and Supabase persistence.
 
