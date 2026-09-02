@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // Arena exposes dev servers through a generated *.e2b.app preview hostname.
+  // This affects development-only HMR resources and is not a production CORS rule.
+  allowedDevOrigins: ["*.e2b.app"],
 };
 
 export default nextConfig;
