@@ -47,6 +47,62 @@ interface GeocodeResult {
   displayName: string;
 }
 
+interface BrowserNominatimResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+}
+
+const BROWSER_GEOCODE_CACHE_PREFIX = "waste-wise-nominatim-";
+let nextBrowserGeocodeAt = 0;
+
+function locationQuery(address: string) {
+  return /ahmedabad/i.test(address) ? address.trim() : `${address.trim()}, Ahmedabad, Gujarat, India`;
+}
+
+async function geocodeInBrowser(address: string): Promise<GeocodeResult | null> {
+  const query = locationQuery(address);
+  const cacheKey = `${BROWSER_GEOCODE_CACHE_PREFIX}${query.toLowerCase()}`;
+
+  try {
+    const cached = window.sessionStorage.getItem(cacheKey);
+    if (cached) return JSON.parse(cached) as GeocodeResult | null;
+  } catch {
+    // Private browsing can prevent session storage. A live lookup can still continue.
+  }
+
+  const now = Date.now();
+  const waitMs = Math.max(0, nextBrowserGeocodeAt - now);
+  nextBrowserGeocodeAt = Math.max(now, nextBrowserGeocodeAt) + 1100;
+  if (waitMs > 0) await new Promise<void>((resolve) => window.setTimeout(resolve, waitMs));
+
+  const params = new URLSearchParams({
+    q: query,
+    format: "jsonv2",
+    limit: "1",
+    countrycodes: "in",
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error("The public map search service is unavailable.");
+
+  const results = await response.json() as BrowserNominatimResult[];
+  const result = results[0];
+  const latitude = Number(result?.lat);
+  const longitude = Number(result?.lon);
+  const resolved = result && Number.isFinite(latitude) && Number.isFinite(longitude)
+    ? { latitude, longitude, displayName: result.display_name }
+    : null;
+
+  try {
+    window.sessionStorage.setItem(cacheKey, JSON.stringify(resolved));
+  } catch {
+    // Caching is best effort when browser privacy settings block storage.
+  }
+  return resolved;
+}
+
 function inputNumber(value: string): number | null {
   if (value.trim() === "") return null;
   const parsed = Number(value);
@@ -110,19 +166,34 @@ export function BinSetup() {
   }
 
   async function geocodeAddress(address: string): Promise<GeocodeResult | null> {
-    const response = await fetch("/api/geocode", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address }),
-    });
+    let response: Response;
+    try {
+      response = await fetch("/api/geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+    } catch {
+      // The browser fallback keeps the Arena-hosted preview usable when its server
+      // cannot establish an outbound connection to the public Nominatim service.
+      return geocodeInBrowser(address);
+    }
+
     const body = await response.json().catch(() => null) as
-      | { result?: GeocodeResult | null; error?: { message?: string } }
+      | { result?: GeocodeResult | null; error?: { code?: string; message?: string } }
       | null;
 
-    if (!response.ok) {
-      throw new Error(body?.error?.message ?? "Location search failed.");
+    if (response.ok) return body?.result ?? null;
+
+    if (body?.error?.code === "geocoder_connection_unavailable") {
+      try {
+        return await geocodeInBrowser(address);
+      } catch {
+        // Retain the server response below so the user gets a clear manual-coordinate fallback.
+      }
     }
-    return body?.result ?? null;
+
+    throw new Error(body?.error?.message ?? "Location search failed.");
   }
 
   async function locateBin(bin: ShowcaseBin) {

@@ -84,8 +84,8 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       return Response.json(
-        { error: { code: "geocoder_unavailable", message: "The map search service is unavailable. Enter coordinates manually or try again." } },
-        { status: 503 },
+        { error: { code: "geocoder_rejected", message: "The map search service could not complete this lookup. Enter coordinates manually or try again later." } },
+        { status: response.status === 429 ? 429 : 502 },
       );
     }
 
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     return Response.json({ result }, { headers: { "Cache-Control": "private, max-age=86400" } });
   } catch {
     return Response.json(
-      { error: { code: "geocoder_unavailable", message: "The map search service is unavailable. Enter coordinates manually or try again." } },
+      { error: { code: "geocoder_connection_unavailable", message: "The map search service is unavailable from this server. You can try browser lookup or enter coordinates manually." } },
       { status: 503 },
     );
   }
