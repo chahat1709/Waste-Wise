@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Waste-Wise">
+  <defs>
+    <linearGradient id="g" x1="80" y1="60" x2="438" y2="450" gradientUnits="userSpaceOnUse"><stop stop-color="#2ab27b"/><stop offset="1" stop-color="#0b5e4d"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#0d2d2a"/>
+  <circle cx="256" cy="256" r="162" fill="url(#g)"/>
+  <path d="M257 112c-58 0-110 34-135 86l45 20c17-36 53-59 93-59 30 0 58 12 78 33l-42 3 6 49 118-9-13-117-49 5 4 39a149 149 0 0 0-105-50Zm-104 142-62 102 42 26 21-35c31 66 96 108 169 108 58 0 111-28 143-74l-39-29c-23 33-61 53-102 53-47 0-90-26-112-67l43 8 10-48-113-25Zm246 3-9 49 39 7c-24 30-60 48-99 48-20 0-39-5-56-15l-23 44a159 159 0 0 0 183-33l-2 43 49 3 8-117-117-8Z" fill="#f2fff8"/>
+</svg>
