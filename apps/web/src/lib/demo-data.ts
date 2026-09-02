@@ -1,41 +1,45 @@
 import type { AlertItem, RouteStop } from "@/lib/domain";
 
+/**
+ * Deliberately local, deterministic Ahmedabad showcase data.
+ * Nothing in this file is fetched from a map, device, employee, or municipal system.
+ */
 export const routeStops: RouteStop[] = [
   {
-    id: "BIN-1024",
+    id: "BIN-AMD-1024",
     sequence: 1,
-    name: "Civic Centre Gate",
-    address: "West Loop Road · Sector 4",
+    name: "Navrangpura Bus Stand",
+    address: "CG Road · Navrangpura",
     fillPercent: 96,
     weightKg: 188,
     status: "pending",
     eta: "09:18",
   },
   {
-    id: "BIN-1081",
+    id: "BIN-AMD-1081",
     sequence: 2,
-    name: "River Market North",
-    address: "Market Street · Zone B",
+    name: "Vastrapur Lake Gate",
+    address: "Vastrapur · West Zone",
     fillPercent: 88,
     weightKg: 142,
     status: "pending",
     eta: "09:33",
   },
   {
-    id: "BIN-1017",
+    id: "BIN-AMD-1017",
     sequence: 3,
-    name: "Library Square",
-    address: "Cedar Avenue · Ward 2",
+    name: "IIM Road Market",
+    address: "Panjarapole · Ahmedabad",
     fillPercent: 72,
     weightKg: 109,
     status: "pending",
     eta: "09:49",
   },
   {
-    id: "BIN-1098",
+    id: "BIN-AMD-1098",
     sequence: 4,
-    name: "Station Service Lane",
-    address: "Transit Road · Zone C",
+    name: "Prahlad Nagar Crossroads",
+    address: "SG Highway · Makarba",
     fillPercent: 91,
     weightKg: 163,
     status: "pending",
@@ -45,42 +49,51 @@ export const routeStops: RouteStop[] = [
 
 export const alerts: AlertItem[] = [
   {
-    id: "ALT-4901",
+    id: "ALT-AMD-4901",
     severity: "critical",
     title: "Smoke signal detected",
-    description: "Sensor reported smoke with a rapid temperature rise.",
-    location: "Station Service Lane · BIN-1098",
+    description: "Demo sensor reports smoke with a rapid temperature rise.",
+    location: "Prahlad Nagar Crossroads · BIN-AMD-1098",
     time: "2 min ago",
     acknowledged: false,
   },
   {
-    id: "ALT-4897",
+    id: "ALT-AMD-4897",
     severity: "high",
     title: "Lift-capacity risk",
-    description: "Estimated bin weight is above the configured lift threshold.",
-    location: "Civic Centre Gate · BIN-1024",
+    description: "Demo bin estimate is above the configured lift threshold.",
+    location: "Navrangpura Bus Stand · BIN-AMD-1024",
     time: "9 min ago",
     acknowledged: false,
   },
   {
-    id: "ALT-4886",
+    id: "ALT-AMD-4886",
     severity: "warning",
     title: "Device check-in overdue",
-    description: "This device has not sent a valid telemetry update in 12 hours.",
-    location: "Old Mill Road · BIN-0984",
+    description: "Demo device has not sent a valid telemetry update in 12 hours.",
+    location: "Paldi Garden · BIN-AMD-0984",
     time: "43 min ago",
     acknowledged: true,
   },
 ];
 
 export const fleet = [
-  { id: "TRK-14", driver: "Arjun Patel", status: "On route", load: "2.8 / 5.0 t", progress: 56 },
-  { id: "TRK-21", driver: "Meera Shah", status: "Loading", load: "1.1 / 4.0 t", progress: 28 },
-  { id: "TRK-08", driver: "Karan Desai", status: "Available", load: "0.0 / 4.5 t", progress: 0 },
+  { id: "TRK-AMD-14", driver: "Arjun Patel", status: "On route", load: "2.8 / 5.0 t", progress: 56 },
+  { id: "TRK-AMD-21", driver: "Meera Shah", status: "Loading", load: "1.1 / 4.0 t", progress: 28 },
+  { id: "TRK-AMD-08", driver: "Karan Desai", status: "Available", load: "0.0 / 4.5 t", progress: 0 },
 ];
 
 export const shiftRows = [
-  { driver: "Arjun Patel", route: "R-2026-091", clockIn: "08:04", bins: 18, status: "Active" },
-  { driver: "Meera Shah", route: "R-2026-094", clockIn: "08:17", bins: 12, status: "Active" },
-  { driver: "Karan Desai", route: "R-2026-088", clockIn: "07:52", bins: 23, status: "Complete" },
+  { driver: "Arjun Patel", route: "R-AMD-091", clockIn: "08:04", bins: 18, status: "Active" },
+  { driver: "Meera Shah", route: "R-AMD-094", clockIn: "08:17", bins: 12, status: "Active" },
+  { driver: "Karan Desai", route: "R-AMD-088", clockIn: "07:52", bins: 23, status: "Complete" },
 ];
+
+export const demoRouteSummary = {
+  totalBins: 48,
+  assignedTrucks: 3,
+  totalDistanceKm: 36.4,
+  estimatedDuration: "3 hr 18 min",
+  distanceSavedPercent: 23,
+  routeName: "R-AMD-091",
+};

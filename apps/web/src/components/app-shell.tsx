@@ -63,7 +63,7 @@ export function AppShell({ role, eyebrow, title, subtitle, children }: AppShellP
           <span className="sidebar-context__eyebrow">Unified operations</span>
           <strong>{roleLabels[role]} workspace</strong>
           <span className="sidebar-context__status">
-            <i aria-hidden="true" /> Pilot preview
+            <i aria-hidden="true" /> Showcase mode
           </span>
         </div>
 
@@ -107,8 +107,8 @@ export function AppShell({ role, eyebrow, title, subtitle, children }: AppShellP
           <div className="sidebar-security">
             <ShieldCheck size={17} aria-hidden="true" />
             <span>
-              <strong>Role-safe by design</strong>
-              <small>RBAC foundation in progress</small>
+              <strong>Role-aware by design</strong>
+              <small>Local Ahmedabad demo data</small>
             </span>
           </div>
           <Link className="sidebar-settings" href="/login">
@@ -168,9 +168,9 @@ export function AppShell({ role, eyebrow, title, subtitle, children }: AppShellP
         <div className="preview-banner" role="status">
           <span className="preview-banner__dot" aria-hidden="true" />
           <span>
-            <strong>Foundation preview</strong> — interface flows use a local pilot dataset until Supabase and the operations API are connected.
+            <strong>Ahmedabad showcase mode</strong> — all bins, routes, alerts, trucks, and payroll figures are local demo data; no internet or external API is required.
           </span>
-          <Link href="/login">Exit preview</Link>
+          <Link href="/login">Switch view</Link>
         </div>
 
         <main className="workspace-main">{children}</main>

@@ -6,10 +6,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Waste-Wise | Municipal operations",
+    default: "Waste-Wise | Ahmedabad showcase",
     template: "%s | Waste-Wise",
   },
-  description: "A unified, role-aware smart waste and municipal operations platform.",
+  description: "A clickable Ahmedabad smart-waste operations showcase prototype.",
   applicationName: "Waste-Wise",
   manifest: "/manifest.webmanifest",
   icons: {

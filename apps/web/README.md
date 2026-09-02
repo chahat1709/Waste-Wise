@@ -2,6 +2,8 @@
 
 This is the controlled-migration workspace for the Waste-Wise v2.0 unified responsive application. It intentionally lives alongside the legacy prototype while the production architecture is built out.
 
+> **Current priority: Ahmedabad showcase prototype.** The default no-environment mode is a polished, deterministic, fully local presentation demo. It requires no Google API key, Supabase project, hardware, or internet-backed route request. Use `../../docs/NBA_SHOWCASE_SCRIPT.md` for the walkthrough.
+
 ## Current foundation
 
 - Responsive role-aware surfaces for **Driver**, **Dispatcher**, and **HR / Admin**.

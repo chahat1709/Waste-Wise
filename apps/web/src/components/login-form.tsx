@@ -83,7 +83,7 @@ export function LoginForm() {
           <BrandMark inverse />
           <div className="login-hero__copy">
             <span className="eyebrow-chip eyebrow-chip--light">
-              <Sparkles size={14} /> Municipal operations, unified
+              <Sparkles size={14} /> Ahmedabad showcase · local and reliable
             </span>
             <h1>
               Safer streets.
@@ -91,7 +91,7 @@ export function LoginForm() {
               Smarter collection.
             </h1>
             <p>
-              One operational workspace for every field route, safety signal, and payroll-ready shift.
+              A stable, clickable Waste-Wise prototype for every route, safety signal, and verified shift.
             </p>
           </div>
           <div className="login-hero__proof">
@@ -104,18 +104,18 @@ export function LoginForm() {
             </div>
           </div>
         </div>
-        <div className="login-hero__footer">Waste-Wise v2.0 · Pilot foundation</div>
+        <div className="login-hero__footer">Waste-Wise · Ahmedabad showcase prototype</div>
       </section>
 
       <section className="login-panel-wrap">
         <div className="login-panel">
           <div className="login-panel__heading">
             <span className="eyebrow-chip">Secure sign in</span>
-            <h2>Welcome to the operations hub</h2>
+            <h2>Choose a showcase workspace</h2>
             <p>
               {configured
                 ? "Use your municipality or agency account to enter your assigned workspace."
-                : "Explore the unified PWA foundation with one of the local pilot workspaces."}
+                : "Explore the Ahmedabad prototype with local sample data. No account, API key, or internet connection is needed."}
             </p>
           </div>
 
@@ -183,7 +183,7 @@ export function LoginForm() {
             {message && <p className="form-message" role="alert">{message}</p>}
 
             <button className="primary-button primary-button--wide" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Signing in…" : configured ? "Sign in securely" : `Open ${roleLabels[selectedRole]} preview`}
+              {isSubmitting ? "Signing in…" : configured ? "Sign in securely" : `Open ${roleLabels[selectedRole]} demo`}
               <ArrowRight size={18} aria-hidden="true" />
             </button>
           </form>
@@ -191,9 +191,9 @@ export function LoginForm() {
           <div className="login-panel__footer">
             <span>
               <ShieldCheck size={15} />
-              {configured ? "Your access is protected by role-based controls." : "Preview mode uses local sample data only."}
+              {configured ? "Your access is protected by role-based controls." : "Showcase mode uses deterministic local sample data only."}
             </span>
-            {configured ? <Link href="#reset">Forgot password?</Link> : <Link href="/">About this build</Link>}
+            {configured ? <Link href="#reset">Forgot password?</Link> : <Link href="/">About this prototype</Link>}
           </div>
         </div>
       </section>

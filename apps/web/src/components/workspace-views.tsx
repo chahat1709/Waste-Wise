@@ -36,7 +36,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { alerts, fleet, routeStops, shiftRows } from "@/lib/demo-data";
+import { alerts, demoRouteSummary, fleet, routeStops, shiftRows } from "@/lib/demo-data";
 import type { AlertItem, AlertSeverity, RouteStop, RouteStopStatus } from "@/lib/domain";
 import { enqueueOfflineCommand, type OfflineCommandType } from "@/lib/offline/outbox";
 
@@ -192,7 +192,7 @@ export function DriverWorkspace() {
       return;
     }
     setSosRaised(true);
-    const queued = await queueWhenOffline("sos.raise", { routeReference: "R-2026-091" });
+    const queued = await queueWhenOffline("sos.raise", { routeReference: "R-AMD-091" });
     setLastMessage(
       queued
         ? "SOS preview was queued in the offline outbox. Reconnect immediately so dispatch can receive it."
@@ -201,7 +201,7 @@ export function DriverWorkspace() {
   }
 
   async function reportRoadHazard() {
-    const queued = await queueWhenOffline("hazard.report", { kind: "unsafe_access", routeReference: "R-2026-091" });
+    const queued = await queueWhenOffline("hazard.report", { kind: "unsafe_access", routeReference: "R-AMD-091" });
     setLastMessage(
       queued
         ? "Road-hazard report was queued in the offline outbox for safe replay."
@@ -213,8 +213,8 @@ export function DriverWorkspace() {
     <AppShell
       role="driver"
       eyebrow={onShift ? "Shift active · GPS sharing on" : "Shift ready · GPS sharing paused"}
-      title={onShift ? "Route R-2026-091" : "Good morning, Arjun"}
-      subtitle={onShift ? "Zone B collection route · 4 planned stops" : "Start your shift to unlock today’s verified collection route."}
+      title={onShift ? "Route R-AMD-091" : "Good morning, Arjun"}
+      subtitle={onShift ? "Ahmedabad West Zone route · 4 planned stops" : "Start your shift to unlock today’s verified collection route."}
     >
       <section className="driver-hero-grid">
         <article className={`shift-card ${onShift ? "shift-card--active" : ""}`}>
@@ -337,7 +337,7 @@ export function DriverWorkspace() {
             <div className="panel-heading panel-heading--compact">
               <div>
                 <span className="section-kicker">Route overview</span>
-                <h2>Zone B · 7.8 km</h2>
+                <h2>Ahmedabad West Zone · 7.8 km</h2>
               </div>
               <Navigation size={19} className="muted-icon" />
             </div>
@@ -352,7 +352,7 @@ export function DriverWorkspace() {
                   </g>
                 ))}
               </svg>
-              <span className="mini-map__label">Provider route geometry connects here in Phase 3</span>
+              <span className="mini-map__label">Local showcase route · no external map/API required</span>
             </div>
           </article>
         </aside>
@@ -364,7 +364,10 @@ export function DriverWorkspace() {
 export function DispatchWorkspace() {
   const [alertItems, setAlertItems] = useState<AlertItem[]>(alerts);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [routeMessage, setRouteMessage] = useState("Route planner is ready for a provider-backed matrix.");
+  const [hasOptimizedRoute, setHasOptimizedRoute] = useState(false);
+  const [isRoutePublished, setIsRoutePublished] = useState(false);
+  const [showAvoidArea, setShowAvoidArea] = useState(true);
+  const [routeMessage, setRouteMessage] = useState("Select Optimize demo routes to run the local Ahmedabad showcase scenario.");
 
   const openAlerts = alertItems.filter((alert) => !alert.acknowledged).length;
 
@@ -374,17 +377,29 @@ export function DispatchWorkspace() {
 
   function generateRoutes() {
     setIsGenerating(true);
-    setRouteMessage("Validating fleet, bin priorities, capacities, and avoid areas…");
+    setHasOptimizedRoute(false);
+    setIsRoutePublished(false);
+    setRouteMessage("Optimizing Ahmedabad bins, demo fleet, capacities, and safety exclusions…");
     window.setTimeout(() => {
       setIsGenerating(false);
-      setRouteMessage("Preview complete. Connect the selected road-matrix provider before publishing an operational route.");
+      setHasOptimizedRoute(true);
+      setRouteMessage("Demo route ready. This result is deterministic and requires no internet, map key, or provider account.");
     }, 800);
+  }
+
+  function publishDemoRoute() {
+    if (!hasOptimizedRoute) {
+      setRouteMessage("Optimize the demo route before publishing it to the driver showcase.");
+      return;
+    }
+    setIsRoutePublished(true);
+    setRouteMessage(`${demoRouteSummary.routeName} is published to the local driver showcase. No real driver or vehicle was notified.`);
   }
 
   return (
     <AppShell
       role="dispatcher"
-      eyebrow="Control centre · 3 trucks active"
+      eyebrow="Ahmedabad control centre · 3 trucks active"
       title="Operations command centre"
       subtitle="Prioritize safety signals, coordinate the fleet, and publish only feasible routes."
     >
@@ -403,26 +418,29 @@ export function DispatchWorkspace() {
               <h2>Safety-first collection demand</h2>
             </div>
             <div className="map-controls">
-              <button className="map-control" type="button"><LocateFixed size={16} /> Re-centre</button>
-              <button className="map-control" type="button"><MapPinned size={16} /> Avoid areas</button>
+              <button className="map-control" type="button" onClick={() => setRouteMessage("Map re-centred on the Ahmedabad West Zone showcase area.")}><LocateFixed size={16} /> Re-centre</button>
+              <button className="map-control" type="button" onClick={() => {
+                setShowAvoidArea((current) => !current);
+                setRouteMessage(showAvoidArea ? "Demo safety exclusion hidden from the map." : "Demo safety exclusion displayed for dispatcher review.");
+              }}><MapPinned size={16} /> {showAvoidArea ? "Hide avoid area" : "Show avoid area"}</button>
             </div>
           </div>
-          <div className="operations-map" aria-label="Illustrative municipal operations map">
-            <span className="map-label map-label--one">Ward 02</span>
-            <span className="map-label map-label--two">Market zone</span>
-            <span className="map-label map-label--three">Transit corridor</span>
+          <div className={`operations-map ${showAvoidArea ? "" : "operations-map--without-avoid"}`} aria-label="Illustrative Ahmedabad municipal operations map">
+            <span className="map-label map-label--one">Navrangpura</span>
+            <span className="map-label map-label--two">Vastrapur</span>
+            <span className="map-label map-label--three">SG Highway</span>
             <svg className="operations-map__roads" viewBox="0 0 700 375" preserveAspectRatio="none" aria-hidden="true">
               <path d="M-20 310 C110 250 140 30 310 95 S400 330 512 248 S590 65 735 88" />
               <path d="M30 40 C150 128 192 109 267 159 S434 134 529 84 S610 182 731 270" />
               <path d="M-10 200 C136 169 224 248 342 218 S558 158 708 190" />
             </svg>
-            <svg className="operations-map__route" viewBox="0 0 700 375" preserveAspectRatio="none" aria-hidden="true">
+            <svg className={`operations-map__route ${hasOptimizedRoute ? "operations-map__route--optimized" : ""}`} viewBox="0 0 700 375" preserveAspectRatio="none" aria-hidden="true">
               <path d="M80 292 C178 229 190 90 312 117 S395 309 515 247 S594 100 663 107" />
             </svg>
             <span className="truck-marker truck-marker--one"><Truck size={15} /></span>
             <span className="truck-marker truck-marker--two"><Truck size={15} /></span>
-            <button className="bin-marker bin-marker--critical" type="button" aria-label="Critical smoke alert at BIN-1098"><Siren size={13} /></button>
-            <button className="bin-marker bin-marker--high" type="button" aria-label="High fill alert at BIN-1024"><Gauge size={13} /></button>
+            <button className="bin-marker bin-marker--critical" type="button" aria-label="Critical smoke alert at BIN-AMD-1098" onClick={() => setRouteMessage("Prahlad Nagar safety alert selected in the local showcase.")}><Siren size={13} /></button>
+            <button className="bin-marker bin-marker--high" type="button" aria-label="High fill alert at BIN-AMD-1024" onClick={() => setRouteMessage("Navrangpura high-fill bin selected in the local showcase.")}><Gauge size={13} /></button>
             <button className="bin-marker bin-marker--warning" type="button" aria-label="Warning bin"><Gauge size={13} /></button>
             <button className="bin-marker bin-marker--normal" type="button" aria-label="Normal bin"><Gauge size={13} /></button>
             <div className="map-legend">
@@ -433,7 +451,7 @@ export function DispatchWorkspace() {
             </div>
           </div>
           <div className="map-footnote">
-            <Radio size={15} /> Live telemetry transport and production map geometry are the next connected milestones.
+            <Radio size={15} /> Ahmedabad locations, routes, trucks, and alerts are generated locally for this stable showcase.
           </div>
         </article>
 
@@ -472,23 +490,46 @@ export function DispatchWorkspace() {
         <article className="panel planner-panel">
           <div className="planner-panel__topline">
             <div>
-              <span className="section-kicker">CVRP shift planner</span>
+              <span className="section-kicker">Showcase route planner</span>
               <h2>Generate feasible collection routes</h2>
-              <p>Uses real road cost, truck profile, load limits, and dispatcher avoid areas before a route can be published.</p>
+              <p>A safe, presentation-ready simulation of demand, vehicle capacity, stop order, and dispatcher review.</p>
             </div>
-            <div className="planner-status"><Sparkles size={16} /> Provider spike pending</div>
+            <div className="planner-status"><Sparkles size={16} /> Local demo mode</div>
           </div>
           <div className="planner-panel__inputs">
-            <span><Truck size={16} /> 5 eligible vehicles</span>
-            <span><Gauge size={16} /> 48 eligible bins</span>
-            <span><MapPinned size={16} /> 2 active avoid areas</span>
-            <span><Clock3 size={16} /> Shift ends 16:30</span>
+            <span><Truck size={16} /> 3 demo vehicles</span>
+            <span><Gauge size={16} /> 48 Ahmedabad bins</span>
+            <span><MapPinned size={16} /> 2 demo safety areas</span>
+            <span><Clock3 size={16} /> Demo shift: 08:00–16:30</span>
           </div>
+
+          {hasOptimizedRoute && (
+            <div className="demo-route-result" aria-live="polite">
+              <div className="demo-route-result__heading">
+                <span><Check size={15} /> Demo optimization complete</span>
+                <strong>{demoRouteSummary.routeName}</strong>
+              </div>
+              <div className="demo-route-result__metrics">
+                <span><strong>{demoRouteSummary.assignedTrucks}</strong> trucks assigned</span>
+                <span><strong>{demoRouteSummary.totalBins}</strong> bins covered</span>
+                <span><strong>{demoRouteSummary.totalDistanceKm} km</strong> planned distance</span>
+                <span><strong>{demoRouteSummary.distanceSavedPercent}%</strong> shorter route</span>
+              </div>
+              <div className="demo-route-result__footer">
+                <span><Clock3 size={14} /> Est. completion: {demoRouteSummary.estimatedDuration}</span>
+                <button className={`publish-demo-button ${isRoutePublished ? "publish-demo-button--published" : ""}`} type="button" onClick={publishDemoRoute}>
+                  {isRoutePublished ? <Check size={15} /> : <Route size={15} />}
+                  {isRoutePublished ? "Published to driver demo" : "Publish demo route"}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="planner-panel__footer">
             <p className="interaction-message" role="status">{routeMessage}</p>
             <button className="primary-button" type="button" onClick={generateRoutes} disabled={isGenerating}>
               {isGenerating ? <RefreshCw className="spin" size={17} /> : <Route size={17} />}
-              {isGenerating ? "Preparing…" : "Generate shift routes"}
+              {isGenerating ? "Optimizing…" : hasOptimizedRoute ? "Run demo again" : "Optimize demo routes"}
             </button>
           </div>
         </article>
@@ -497,7 +538,7 @@ export function DispatchWorkspace() {
           <div className="panel-heading panel-heading--compact">
             <div>
               <span className="section-kicker">Fleet pulse</span>
-              <h2>Vehicle availability</h2>
+              <h2>Demo fleet availability</h2>
             </div>
             <button className="icon-button" type="button" aria-label="More fleet options"><MoreHorizontal size={20} /></button>
           </div>
@@ -520,14 +561,14 @@ export function DispatchWorkspace() {
 }
 
 export function AdminWorkspace() {
-  const [exportStatus, setExportStatus] = useState("Payroll data is ready for an approved export.");
+  const [exportStatus, setExportStatus] = useState("Showcase payroll data is ready for a local CSV preview.");
 
   return (
     <AppShell
       role="admin"
-      eyebrow="Administration · September payroll cycle"
+      eyebrow="Ahmedabad administration · September payroll cycle"
       title="People, fleet & payroll"
-      subtitle="Keep municipal operations staffed, equipped, and transparently accounted for."
+      subtitle="A presentation-ready view of people, fleet, payroll, and accountable field work."
     >
       <section className="metric-grid metric-grid--four">
         <MetricCard label="Active staff" value="42" detail="39 on active roster" tone="mint" icon={UsersRound} />
@@ -543,7 +584,7 @@ export function AdminWorkspace() {
               <span className="section-kicker">Shift & payroll ledger</span>
               <h2>Today&apos;s field activity</h2>
             </div>
-            <button className="primary-button primary-button--compact" type="button" onClick={() => setExportStatus("CSV preview generated. Production exports will include only approved shifts and the configured municipal format.") }>
+            <button className="primary-button primary-button--compact" type="button" onClick={() => setExportStatus("CSV showcase preview generated. No real payroll or employee data is exported.") }>
               <ArrowDownToLine size={16} /> Export CSV
             </button>
           </div>
@@ -573,7 +614,7 @@ export function AdminWorkspace() {
           <span className="section-kicker">Current cycle</span>
           <h2>Payroll readiness</h2>
           <div className="payroll-amount">₹ 84,260</div>
-          <p>Estimated approved wage total across 31 verified shifts.</p>
+          <p>Showcase-only estimated wage total across 31 sample shifts.</p>
           <div className="payroll-summary-card__progress">
             <div><span>Approval progress</span><strong>74%</strong></div>
             <RouteProgress progress={74} />
@@ -596,9 +637,9 @@ export function AdminWorkspace() {
             <button className="text-button" type="button">Manage vehicles <ChevronRight size={15} /></button>
           </div>
           <div className="vehicle-grid">
-            <article className="vehicle-card vehicle-card--ready"><span><Truck size={18} /> TRK-14</span><strong>5.0 t · 18 m³</strong><small><i /> Ready for dispatch</small></article>
-            <article className="vehicle-card vehicle-card--ready"><span><Truck size={18} /> TRK-21</span><strong>4.0 t · 14 m³</strong><small><i /> Ready for dispatch</small></article>
-            <article className="vehicle-card vehicle-card--service"><span><Truck size={18} /> TRK-03</span><strong>4.5 t · 16 m³</strong><small><i /> Service due Friday</small></article>
+            <article className="vehicle-card vehicle-card--ready"><span><Truck size={18} /> TRK-AMD-14</span><strong>5.0 t · 18 m³</strong><small><i /> Ready for demo dispatch</small></article>
+            <article className="vehicle-card vehicle-card--ready"><span><Truck size={18} /> TRK-AMD-21</span><strong>4.0 t · 14 m³</strong><small><i /> Ready for demo dispatch</small></article>
+            <article className="vehicle-card vehicle-card--service"><span><Truck size={18} /> TRK-AMD-03</span><strong>4.5 t · 16 m³</strong><small><i /> Service due Friday</small></article>
           </div>
         </article>
 

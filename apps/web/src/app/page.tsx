@@ -40,19 +40,19 @@ export default function Home() {
         <div className="marketing-hero__glow marketing-hero__glow--one" aria-hidden="true" />
         <div className="marketing-hero__glow marketing-hero__glow--two" aria-hidden="true" />
         <div className="marketing-hero__copy">
-          <span className="eyebrow-chip"><Sparkles size={14} /> Waste-Wise v2.0 · Unified operations</span>
-          <h1>Waste collection, <em>made operational.</em></h1>
+          <span className="eyebrow-chip"><Sparkles size={14} /> Ahmedabad showcase · Waste-Wise prototype</span>
+          <h1>Ahmedabad waste, <em>made visible.</em></h1>
           <p>
-            A single role-aware workspace for municipal teams to act on bin intelligence, route safely, and verify field work.
+            A polished, interactive prototype for showing how Ahmedabad teams can track bins, optimize collection routes, and verify field work.
           </p>
           <div className="marketing-hero__actions">
-            <Link className="primary-button" href="/login">Explore the pilot workspace <ArrowRight size={18} /></Link>
-            <a className="quiet-button quiet-button--marketing" href="#foundation">View build foundation <ArrowDownIcon /></a>
+            <Link className="primary-button" href="/login">Start the 3-minute demo <ArrowRight size={18} /></Link>
+            <a className="quiet-button quiet-button--marketing" href="#foundation">See demo flow <ArrowDownIcon /></a>
           </div>
           <div className="marketing-hero__trust">
-            <span><CheckCircle2 size={16} /> Hazard-first alerts</span>
-            <span><CheckCircle2 size={16} /> Heavy-vehicle route planning</span>
-            <span><CheckCircle2 size={16} /> Privacy-aware field tracking</span>
+            <span><CheckCircle2 size={16} /> Safety alerts</span>
+            <span><CheckCircle2 size={16} /> Route optimization</span>
+            <span><CheckCircle2 size={16} /> Driver proof of service</span>
           </div>
         </div>
 
@@ -85,7 +85,7 @@ export default function Home() {
       </section>
 
       <section className="marketing-strip" id="workflow">
-        <p>Designed for municipalities and collection agencies</p>
+        <p>Built for an Ahmedabad smart-waste showcase</p>
         <span aria-hidden="true" />
         <div><MapPinned size={17} /> Dispatchers</div>
         <div><Smartphone size={17} /> Drivers</div>
@@ -94,9 +94,9 @@ export default function Home() {
 
       <section className="capability-section">
         <div className="section-intro">
-          <span className="section-kicker">One reliable operational loop</span>
-          <h2>From edge signal to verified service.</h2>
-          <p>Waste-Wise replaces disconnected tools with one traceable path from sensing to payroll.</p>
+          <span className="section-kicker">One simple showcase story</span>
+          <h2>From bin alert to cleaner streets.</h2>
+          <p>Walk reviewers through a clear story: identify urgent bins, optimize collection, and verify the completed shift.</p>
         </div>
         <div className="capability-grid">
           {capabilities.map((capability) => {
@@ -116,25 +116,25 @@ export default function Home() {
       <section className="foundation-section" id="foundation">
         <div className="foundation-card">
           <div>
-            <span className="section-kicker">The build now underway</span>
-            <h2>One PWA foundation for every role.</h2>
+            <span className="section-kicker">Ready for the presentation</span>
+            <h2>One clickable prototype for every role.</h2>
             <p>
-              The current delivery slice establishes the shared application shell, role-aware workspaces, PWA capability, typed contracts, and migration-ready data boundary.
+              The showcase runs on deterministic Ahmedabad sample data, so every route, alert, and field interaction works without an internet connection or external API key.
             </p>
           </div>
           <ul>
-            <li><CheckCircle2 size={17} /> Unified responsive UI foundation</li>
-            <li><CheckCircle2 size={17} /> Offline-safe PWA shell</li>
-            <li><CheckCircle2 size={17} /> Secure role/data architecture</li>
+            <li><CheckCircle2 size={17} /> Dispatcher, Driver & Admin views</li>
+            <li><CheckCircle2 size={17} /> Local demo route optimization</li>
+            <li><CheckCircle2 size={17} /> No external API dependency</li>
           </ul>
-          <Link className="primary-button" href="/login">Open pilot preview <ArrowRight size={18} /></Link>
+          <Link className="primary-button" href="/login">Open showcase workspace <ArrowRight size={18} /></Link>
         </div>
       </section>
 
       <footer className="marketing-footer">
         <BrandMark compact />
-        <span>Waste-Wise · Integrated municipal operations</span>
-        <Link href="/login">Enter workspace <ArrowRight size={15} /></Link>
+        <span>Waste-Wise · Ahmedabad showcase prototype</span>
+        <Link href="/login">Start demo <ArrowRight size={15} /></Link>
       </footer>
     </main>
   );
