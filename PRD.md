@@ -40,11 +40,13 @@ The first release focuses on a reliable operational workflow:
 
 The system operates as **one unified application**. Access control dictates what the user sees upon login, while the same backend, data model, and real-time event stream support all roles.
 
-| Role | Primary experience after login | Primary responsibilities |
+| Role | Unified app view | Primary actions |
 | --- | --- | --- |
-| **Admin** | Desktop-first municipal administration and HR view | Manage users, roles, wages, bin/device registry, system configuration, payroll approval, and exports. |
-| **Dispatcher** | Live operational map and route-planning view | Monitor telemetry and alerts, manage exceptions, create/recalculate/publish routes, and oversee active field work. |
-| **Driver** | Mobile-first PWA shift and route-execution view | Start/end shifts, view assigned route, share location only on shift, and record verified collection outcomes. |
+| **Driver** | Mobile-optimized execution view | Clock in/out, view the active route, tap to complete/skip stops, report road hazards, and trigger SOS. |
+| **Dispatcher** | Desktop-optimized map and routing view | Monitor real-time bin alerts, generate CVRP routes, assign drivers, and monitor live truck locations. |
+| **HR / Admin** | Desktop-optimized analytics view | Manage user accounts, view shift logs, export payroll data, and manage the vehicle registry. |
+
+> **Role-model alignment:** “HR / Admin” is delivered through the v2.0 `admin` role defined in the required database schema. A separate `hr` enum role is not currently part of the specified schema.
 
 ### Role-based access requirements
 
@@ -173,6 +175,14 @@ This module tracks the human element for municipal payroll and accountability.
   - **Damaged**
 - Every completion/exception must record the driver, route, bin, timestamp, location-validation result, and outcome.
 - Inaccessible and damaged outcomes must be visible to dispatchers as actionable exceptions.
+- A skipped stop must be recorded as a failed route stop with a reason; it must not disappear from route history.
+
+#### Road hazards and SOS
+
+- Drivers must be able to report a road hazard from the mobile execution view, including the active-route context, current location, timestamp, and an optional note/evidence.
+- A reported road hazard must appear immediately in the dispatcher’s map/routing view and be usable when creating or updating an avoid polygon.
+- Drivers must be able to trigger an SOS during an active shift.
+- An SOS must create a high-visibility real-time dispatcher alert containing the driver, active route/shift, latest available location, timestamp, and acknowledgement/resolution audit trail.
 
 #### Payroll calculation
 
