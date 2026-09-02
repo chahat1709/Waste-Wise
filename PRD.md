@@ -1,390 +1,344 @@
-# Waste-Wise Product Requirements Document
+# Waste-Wise Product Requirements Document (v2.0)
 
 | Field | Value |
 | --- | --- |
-| Product | Waste-Wise — smart waste collection operations platform |
-| Document status | Draft, derived from the current repository and product README |
-| Product baseline | **10% complete** (user-reported on 2026-09-02) |
-| Intended release | Pilot-ready operational MVP, followed by a production municipal rollout |
-| Primary users | Operations administrators / dispatchers, collection drivers, supervisors |
+| **Product** | Waste-Wise — Integrated Smart Waste & Municipal Operations Platform |
+| **Target audience** | Municipalities and private waste-collection agencies |
+| **Application model** | A single, unified responsive Web/PWA application for desktop and mobile |
+| **Current delivery baseline** | 10% complete |
+| **Priority** | P0 critical path: make the operational workflow safe, feasible, and auditable |
 
-> **Important:** The README describes the intended vision, not verified delivery status. This PRD treats the repository as an early prototype and defines the remaining product work needed to make that vision operational.
-
----
-
-## 1. Product summary
-
-Waste-Wise helps waste-collection teams decide **which bins need service, which vehicle should collect them, and what route each driver should follow**. It combines bin telemetry, actionable alerts, route optimization, dispatch, and proof of collection in one web-based workflow.
-
-The product starts with a pilot fleet and a limited set of connected bins. It must remain useful when a bin, device, map provider, or database is temporarily unavailable, while clearly showing data freshness and degraded state to operators.
-
-### Problem to solve
-
-Manual waste collection schedules create three operational failures:
-
-1. Bins overflow before the next scheduled collection because field conditions are invisible to dispatchers.
-2. Trucks travel unnecessary distance collecting low-fill bins while urgent bins wait.
-3. Dispatchers and supervisors lack a reliable audit trail for assignments, alerts, collections, and exceptions.
-
-### Product promise
-
-Give an operations team a trustworthy, real-time view of waste demand and turn it into feasible, trackable collection work with minimal manual coordination.
+> This version supersedes the prior repository draft. It defines Waste-Wise as one role-aware operational application—not separate driver and administrator products.
 
 ---
 
-## 2. Goals and success measures
+## 1. Product Vision & Scope
 
-### Goals
+Waste-Wise is an end-to-end municipal waste-management platform. It transforms waste collection from a static, scheduled chore into a dynamic, hazard-aware, and highly optimized logistical operation. By combining edge-computed IoT telemetry (fill, weight, hazards) with real-world Capacitated Vehicle Routing Problem (CVRP) logic and automated workforce tracking, the platform minimizes operational costs while maximizing safety and driver accountability.
 
-1. **Prevent overflow and safety incidents.** Surface high-fill, overweight, temperature, and explicitly reported hazard conditions quickly.
-2. **Improve collection efficiency.** Prioritize service demand and create vehicle-capacity-aware routes rather than relying on fixed rounds.
-3. **Make field execution accountable.** Allow drivers to receive work, navigate it, record collection, and report exceptions.
-4. **Provide operational control.** Enable admins to manage bins, devices, fleet capacity, users, and live dispatch decisions.
-5. **Be pilot-safe and supportable.** Protect credentials and operational data, validate inputs, preserve an audit trail, and expose health/failure state.
+### Core differentiators
 
-### Measurable MVP outcomes
+1. **Hazard & weight awareness** — Bins report not just volume, but physical weight and fire/smoke risks, preventing equipment damage and truck fires.
+2. **Reality-based routing** — Routes are calculated using real-world road networks, traffic conditions, and heavy-vehicle constraints, not straight lines.
+3. **Unified ecosystem** — There is no separate driver app and admin portal. One application changes dynamically according to the authenticated user’s role.
+4. **Workforce & payroll engine** — Completed field routes and logged shift hours become verifiable payroll data automatically.
 
-Baseline values must be captured during pilot setup. The following measures are release targets, not claims about the current prototype.
+### Scope boundaries
 
-| Outcome | Target |
+The first release focuses on a reliable operational workflow:
+
+1. Register bins, devices, drivers, dispatchers, administrators, and trucks.
+2. Ingest and preserve bin telemetry securely.
+3. Detect hazards and notify the correct operational users immediately.
+4. Generate heavy-vehicle-aware, capacity-constrained routes from real road-network cost data.
+5. Dispatch routes and track collection execution within a shift.
+6. Turn verified shift and collection data into payroll-ready reporting and CSV export.
+
+---
+
+## 2. User Roles & the Single-App Experience
+
+The system operates as **one unified application**. Access control dictates what the user sees upon login, while the same backend, data model, and real-time event stream support all roles.
+
+| Role | Primary experience after login | Primary responsibilities |
+| --- | --- | --- |
+| **Admin** | Desktop-first municipal administration and HR view | Manage users, roles, wages, bin/device registry, system configuration, payroll approval, and exports. |
+| **Dispatcher** | Live operational map and route-planning view | Monitor telemetry and alerts, manage exceptions, create/recalculate/publish routes, and oversee active field work. |
+| **Driver** | Mobile-first PWA shift and route-execution view | Start/end shifts, view assigned route, share location only on shift, and record verified collection outcomes. |
+
+### Role-based access requirements
+
+- The application must route each authenticated user to the appropriate role experience.
+- Authorization must be enforced by the backend/API, not only by hiding UI controls.
+- Drivers may access only their own active shift, assigned route, and relevant bin details.
+- Wage data and payroll approval are visible only to admins.
+- Dispatcher and admin actions that change a route, alert, payroll state, or device configuration must be auditable.
+
+---
+
+## 3. Detailed System Requirements (P0 — Critical Path)
+
+### Module A: IoT Hardware & Telemetry Engine
+
+The physical bins must transmit a comprehensive data payload. The backend must ingest, validate, and store this rapidly.
+
+#### Supported sensor array
+
+| Measurement | Supported hardware |
 | --- | --- |
-| Urgent-bin visibility | At least 95% of accepted telemetry updates appear in the operations view within 5 seconds under pilot load. |
-| Alert timeliness | A threshold or hazard alert is created and visible to the assigned dispatcher/driver within 10 seconds of valid telemetry ingestion. |
-| Route feasibility | 100% of published routes respect configured vehicle capacity, depot, and eligible-bin constraints. |
-| Collection traceability | At least 98% of completed collections have a timestamp, driver, route, bin, and outcome recorded. |
-| Service quality | Overflow incidents per active bin decline against the pre-pilot baseline after sufficient pilot data is collected. |
-| Availability | The pilot service has a documented backup/recovery procedure and a monitored health signal for every critical dependency. |
+| **Volume** | Ultrasonic HC-SR04 or Time-of-Flight (ToF) sensor |
+| **Weight** | Base-mounted load cells with HX711 amplifier |
+| **Hazard** | MQ-2 gas/smoke sensor and internal temperature/flame sensor |
 
-### Non-goals for the first operational MVP
+#### Data ingestion API
 
-- Building custom IoT hardware or firmware beyond documenting the supported device contract.
-- Full ERP, payroll, invoicing, procurement, or resident billing.
-- Autonomous vehicle dispatch or routing without a dispatcher review path.
-- Citywide public reporting, native mobile apps, or advanced ML demand forecasting before the pilot workflow is reliable.
-- Treating straight-line distance as a validated substitute for road routing in production reporting.
+- The backend must accept JSON payloads via secure HTTP `POST` or MQTT.
+- Every telemetry message must contain: `bin_id`, `timestamp`, `fill_percent`, `weight_kg`, `temp_celsius`, and `smoke_detected` (boolean).
+- The API must authenticate the device/bin identity before accepting a message.
+- The API must validate payload type, value range, timestamp, and duplicate/retry behavior before persisting state.
+- The latest accepted state and the telemetry history must be stored durably.
+- Telemetry ingestion must emit real-time events to the unified application after a successful accepted update.
 
----
+Example payload:
 
-## 3. Users and jobs to be done
+```json
+{
+  "bin_id": "bin-uuid-or-registered-id",
+  "timestamp": "2026-09-02T10:15:00Z",
+  "fill_percent": 92,
+  "weight_kg": 184.5,
+  "temp_celsius": 31.2,
+  "smoke_detected": false
+}
+```
 
-| User | Primary job | What success looks like |
+#### Alert state machine
+
+| Severity | Trigger | Required response |
 | --- | --- | --- |
-| Administrator / dispatcher | Monitor service demand, respond to alerts, generate and assign routes | Can identify urgent bins, publish feasible work, and resolve exceptions without switching systems. |
-| Driver | See assigned stops, perform collections, and report status | Knows the next stop and can confirm or flag each collection quickly, even during intermittent connectivity. |
-| Supervisor | Review fleet performance, safety incidents, and completion | Can see what happened, who acted, and where operations need intervention. |
-| Device / integration operator | Register and maintain bin devices | Can safely provision a device, verify its last check-in, and diagnose bad telemetry. |
+| **CRITICAL** | Smoke/fire detected **or** temperature exceeds **65°C** | Instantly alert the dispatcher with audio/visual flags and send a push notification to the nearest active driver. |
+| **HIGH** | Weight exceeds truck lift capacity **or** fill level exceeds **90%** | Create a high-priority operational alert and prioritize the bin for dispatch. |
+| **WARNING** | Device has not checked in for more than **12 hours** | Flag the bin/device as offline for dispatcher/admin follow-up. |
 
-### Permissions
+#### Telemetry and alert acceptance rules
 
-- **Admin:** manage users, bins, devices, thresholds, fleet data, routes, and reporting.
-- **Dispatcher:** view all operational data; generate, edit, publish, reassign, and cancel routes; acknowledge alerts.
-- **Driver:** view only assigned/current routes and permitted bin details; submit location, collection, and exception events.
-- **Supervisor:** read operational data and reports; optionally approve route changes depending on local process.
-- **Device:** may submit telemetry only for its registered identity; it must never have administrative access.
-
-Role checks must be enforced on the server, not only hidden in the browser UI.
+- A single threshold crossing must create one actionable active alert; repeated telemetry must not create an alert storm.
+- A CRITICAL event must remain visible until resolved through an auditable action.
+- The system must record alert source, severity, bin, timestamps, status, and notification outcome.
+- A failed database write must never be reported as a durable telemetry or alert success.
+- The UI must show data freshness so operators can distinguish live, stale, and offline bin state.
 
 ---
 
-## 4. Product scope and requirements
+### Module B: CVRP Routing & Mapping Engine
 
-### P0 — pilot-critical requirements
+The solver must respect the laws of physics and real-world infrastructure.
 
-#### FR-1: Authentication, session handling, and roles
+#### Cost-matrix integration
 
-- Users can sign in and sign out through a supported identity provider.
-- The system maps authenticated users to a server-enforced role and profile.
-- Protected APIs reject unauthenticated and unauthorized requests with clear errors.
-- The UI routes users to the correct experience without relying solely on client-side role selection.
-- Administrators can deactivate a user; deactivated users lose access promptly.
+- The backend **must not use Euclidean or straight-line distance** for production route planning.
+- It must query a distance-matrix API—such as OSRM, Google Maps Routes, or Mapbox—to retrieve real driving times between all selected/full bins.
+- The source and freshness of the cost matrix must be retained with the route result.
+- If a provider is unavailable, the system must show an explicit degraded/failure state rather than silently publishing a route based on straight-line distance.
 
-**Acceptance criteria**
-- A driver cannot read or modify another driver’s routes or collection records.
-- A non-admin cannot provision devices, manage users, or change global settings.
-- Session expiry, sign-out, and failed authentication have clear user-facing states.
+#### Vehicle constraints — the “C” in CVRP
 
-#### FR-2: Bin registry and device lifecycle
+The optimizer must factor in the specific truck’s:
 
-- Admins can create, edit, archive, and search bins.
-- Every bin has a stable ID, human-readable name/location, latitude/longitude, capacity, status, device association, and current telemetry state.
-- Admins can register a device to a bin and see its provisioning status, last successful update, and firmware/version metadata when available.
-- Device provisioning secrets are encrypted or handled through a secure one-time flow; credentials must not be retrievable in plaintext after provisioning.
-- A bin with stale or malformed telemetry is visually distinguishable from a healthy bin.
+- maximum **weight** capacity (for example, 5,000 kg), and
+- maximum **volume** capacity.
 
-**Acceptance criteria**
-- Invalid coordinates, duplicate IDs, impossible fill percentages, and invalid capacities are rejected.
-- Archiving a bin preserves historical routes, alerts, and collections.
-- Device identity/authentication is required before telemetry can update a bin.
+Route generation must stop adding bins when either limit is reached, requiring the truck to return to the dump site/depot before additional bins can be serviced. Published routes must never exceed either configured capacity.
 
-#### FR-3: Telemetry ingestion and real-time state
+#### Road constraints
 
-- Devices or trusted integrations submit bin ID, timestamp, fill level, and optional weight, temperature, humidity, status, and location.
-- The API validates type, range, timestamp freshness, device identity, and rate limits before storing an update.
-- The latest accepted state and immutable telemetry history are persisted.
-- Relevant screens receive real-time updates, with polling/retry fallback when sockets are unavailable.
-- The system records rejected telemetry with a non-sensitive reason for diagnosis.
+- Distance-matrix/routing API calls must specify a **heavy-vehicle profile** where the provider supports one, avoiding narrow residential alleys and weight-restricted bridges.
+- Dispatchers must be able to draw and manage **avoid polygons** on the map—for example, around flooded areas or festival closures—and instantly recalculate routes around them.
+- Routes must include the relevant depot/dump-site return legs.
+- A dispatcher must be able to review, edit, and approve a generated route before publication.
 
-**Acceptance criteria**
-- Duplicate/retried device messages do not create conflicting state or duplicate alerts.
-- A failed database write never falsely reports a durable update as successful.
-- The UI displays last-updated time and marks stale data based on a configurable interval.
+#### Route output requirements
 
-#### FR-4: Alerting and incident workflow
+For every route proposal/published route, store and display:
 
-- Configurable rules create alerts for at least high fill, overweight, high temperature, offline/stale device, and manually reported issues.
-- Alerts have severity, source, affected bin/device, timestamp, status, owner, and audit history.
-- Dispatchers can acknowledge, assign, resolve, and add notes to alerts.
-- Urgent alerts can notify the responsible dispatcher and assigned driver through in-app real-time notifications; push/SMS/email integrations are optional only after reliability is proven.
-- The system avoids repeat alert storms through threshold crossing, cooldown, and deduplication rules.
-
-**Acceptance criteria**
-- A bin crossing its fill threshold creates one active alert, not an alert on every telemetry update.
-- A temperature/hazard alert is clearly differentiated from normal collection work and has an escalation path.
-- Closing an alert never deletes the underlying telemetry or audit record.
-
-#### FR-5: Operations map and bin monitoring
-
-- Dispatchers can see active bins on a map and list, filter by fill level, alert severity, status, zone, device health, and service priority.
-- Bin detail shows current state, trend/history, active alert(s), last collection, assigned route, and basic location information.
-- The UI has useful empty, loading, error, and degraded-data states.
-- Map markers and counts update without requiring a full page reload.
-
-**Acceptance criteria**
-- The bin list/map agree on the same filtered data set.
-- A dispatcher can find an urgent bin by ID or location and reach its detail view in two interactions or fewer.
-
-#### FR-6: Route optimization and dispatch
-
-- Dispatchers select a planning depot, date/shift, eligible bins, available vehicles/drivers, capacities, and optional service priorities.
-- The optimizer produces one or more feasible route proposals with stop order, estimated distance/time, load, unassigned bins, solver source, and assumptions.
-- A dispatcher can review, edit, regenerate, save as draft, publish, reassign, cancel, and version a route.
-- The system must prevent publishing infeasible routes and clearly identify bins that could not be assigned.
-- Road-network distance/time must be used for production decisions when a map provider is available. If the system uses a fallback approximation, it must label the result as an estimate and require dispatcher confirmation.
-
-**Acceptance criteria**
-- Each published route starts/ends at its configured depot unless explicitly configured otherwise.
-- A published route includes no duplicate active stop and does not exceed vehicle capacity.
-- A route can be traced back to its optimization inputs and algorithm/version.
-- Optimizer failure leaves existing published routes unchanged and provides a recoverable error.
-
-#### FR-7: Driver workflow and proof of collection
-
-- Drivers can view their active route, ordered stops, bin priority, contact/escalation instructions, and current progress.
-- Drivers can start/pause/end a route and mark each stop collected, skipped, inaccessible, unsafe, or otherwise exceptioned.
-- A collection event records time, driver, route, bin, result, optional notes/photo, and location when permitted.
-- Route progress updates the dispatcher view in near real time.
-- The workflow supports offline queueing and safe retry for basic status/collection events before mobile-app scope is considered complete.
-
-**Acceptance criteria**
-- A completed stop cannot be silently changed without an auditable correction.
-- A skipped or hazardous stop produces an actionable dispatcher alert/exception.
-- A driver sees only currently assigned work and safe, relevant bin metadata.
-
-#### FR-8: Operational dashboard and reporting
-
-- The dashboard shows total/active/stale bins, active alerts by severity, active routes, completion rate, unassigned urgent bins, and service exceptions.
-- Supervisors can filter reports by time period, zone, vehicle, driver, and bin.
-- Initial exports include bins, collections, alert history, and route completion in CSV.
-- Metrics must be calculated from persisted records, not decorative/mock client-side values.
-
-**Acceptance criteria**
-- Dashboard totals reconcile to the underlying filtered records.
-- Export respects the requester’s permissions and is auditable.
-
-### P1 — post-pilot improvements
-
-- Zone/geofence management and service-level policies.
-- Road-aware ETA, live traffic, and route navigation deep links.
-- Driver location history and route deviation alerts, subject to a published privacy policy.
-- Photo evidence, QR/NFC bin identification, and barcode scanning.
-- Configurable notifications through FCM, email, SMS, or WhatsApp using approved templates.
-- Multi-depot, vehicle types, shift planning, driver availability, and disposal-site constraints.
-- Historical fill-rate trends and demand forecasts.
-- Richer analytics: fuel estimates, cost per collection, overflow risk, and route comparison.
-- Hindi/Gujarati/localization review if serving multilingual field teams.
-
-### P2 — future exploration
-
-- Predictive routing based on fill forecasts and traffic.
-- Citizen reporting and public transparency portal.
-- Native driver apps.
-- Third-party municipal, fleet, GPS, or weighing-scale integrations.
-- Computer vision or image-based contamination detection.
+- assigned driver and vehicle;
+- ordered bin stops;
+- total distance and estimated time;
+- estimated weight and volume load;
+- depot/dump-site start and return context;
+- routing-provider/matrix source and solver version;
+- planning constraints, avoid polygons, and bins that could not be assigned; and
+- route status and audit history.
 
 ---
 
-## 5. Core user journeys
+### Module C: Driver Execution & Workforce Management
 
-### Journey A: Add a connected bin
+This module tracks the human element for municipal payroll and accountability.
 
-1. Admin creates a bin with location, capacity, zone, and required service settings.
-2. Admin registers or securely associates a device.
-3. Device authenticates, retrieves a one-time/protected configuration if needed, and sends a valid telemetry event.
-4. Admin sees the bin as online with a last-seen timestamp; failures are diagnosable without exposing secrets.
+#### Shift tracking
 
-### Journey B: React to an urgent bin
+- Drivers must click **Start Shift** in the PWA before accessing their routes.
+- Starting a shift records `clock_in_time`.
+- Location tracking begins only while the shift is active, preserving driver privacy off the clock.
+- Drivers must be able to end a shift, recording `clock_out_time`.
+- The system must retain a clear status for in-progress, completed, and payroll-approved shifts.
 
-1. A valid telemetry update crosses a configured threshold or reports a hazard.
-2. The system creates/deduplicates an alert, updates the map/list, and notifies the operational owner.
-3. Dispatcher reviews severity, data freshness, and nearby/assigned route context.
-4. Dispatcher adds the bin to a route or creates an emergency route.
-5. Driver completes or exceptions the stop; the alert and collection trail reflect the outcome.
+#### Proof of collection
 
-### Journey C: Plan and execute a collection shift
+- To clear a bin from a route, a driver must be within a **50-meter GPS radius** of the bin.
+- The driver must select one of the supported outcomes:
+  - **Collected**
+  - **Inaccessible** (for example, a car is parked in front of the bin)
+  - **Damaged**
+- Every completion/exception must record the driver, route, bin, timestamp, location-validation result, and outcome.
+- Inaccessible and damaged outcomes must be visible to dispatchers as actionable exceptions.
 
-1. Dispatcher selects a depot, shift, fleet, drivers, eligible bins, capacities, and priorities.
-2. System validates data and proposes feasible routes, including any unassigned bins and assumptions.
-3. Dispatcher reviews/edits and publishes routes.
-4. Drivers receive their route and update progress as stops are completed or exceptioned.
-5. Supervisor reviews completion, exceptions, route performance, and data quality after the shift.
+#### Payroll calculation
+
+The HR dashboard must:
+
+- calculate worked time as `clock_out_time − clock_in_time`;
+- display **Total Hours Worked**, **Total Bins Collected**, and **Total Route Deviations**;
+- calculate wages from the driver’s configured hourly wage and approved shift duration; and
+- provide a one-click CSV export mapped to the municipality’s salary payout structure.
+
+Payroll records must not be silently changed after approval; corrections require an auditable adjustment or reapproval flow.
 
 ---
 
-## 6. Data and integration requirements
+## 4. Exact Database Schema Architecture
 
-### Minimum domain entities
+The relational database (for example, PostgreSQL/Supabase) requires the following strict table structures.
 
-| Entity | Minimum fields |
-| --- | --- |
-| User | ID, name, email/identity ID, role, status, created/updated timestamps |
-| Driver profile | User ID, availability, assigned vehicle/shift, contact preferences |
-| Vehicle | ID, capacity, type, status, depot, availability |
-| Bin | ID, name, location/coordinates, capacity, zone, status, device ID, created/updated timestamps |
-| Telemetry event | ID/idempotency key, bin ID, device ID, observed time, received time, fill/weight/temperature/humidity/status, validation outcome |
-| Alert | ID, type, severity, state, source event, bin/device/route references, owner, timestamps, notes/history |
-| Route | ID/version, shift date, depot/disposal point, driver/vehicle, ordered stops, load/distance/time estimates, state, optimization inputs/output |
-| Route stop | Route ID, sequence, bin ID, planned state, actual result, timestamps, notes/evidence |
-| Collection event | ID, bin/route/driver IDs, result, observed time, submitted time, location/evidence, correction history |
-| Device | ID, bin association, auth identity, lifecycle state, last seen, firmware/version, provisioning audit |
-| Audit event | Actor/system, action, entity, before/after summary, timestamp, request/correlation ID |
+### 4.1 `users` — the core of the unified app
 
-### External integrations
-
-| Integration | MVP requirement | Guardrail |
+| Column | Type / constraint | Notes |
 | --- | --- | --- |
-| Firebase or equivalent identity provider | Authentication and token/session verification | Keep client configuration separate from server credentials; enforce server-side authorization. |
-| Supabase/Postgres or equivalent | Durable operational data, telemetry history, audit records | Schema migrations, backups, row-level/server access strategy, and monitored failures are required. |
-| Socket.IO or equivalent | Best-effort real-time UI updates | REST/API reads remain the source of truth; reconnect and fallback behavior is required. |
-| Map/routing provider | Road distance/time for production route proposals | Rate-limit, cache appropriately, show provider/fallback state, and handle outage gracefully. |
-| ESP32 / device fleet | Signed/authenticated telemetry contract | Never rely on an unauthenticated bin ID or expose Wi-Fi/admin secrets in ordinary API responses. |
+| `id` | UUID, primary key | Core user identifier |
+| `full_name` | String | User’s full name |
+| `role` | Enum: `admin`, `dispatcher`, `driver` | Determines application experience and permissions |
+| `hourly_wage` | Decimal | Visible only to admins |
+| `status` | Enum: `active`, `suspended` | Controls account availability |
 
----
+### 4.2 `bins`
 
-## 7. Non-functional requirements
-
-### Reliability and data integrity
-
-- Persist critical operational records before confirming success where feasible.
-- Use idempotency keys or an equivalent strategy for telemetry, collection, and route-publication retries.
-- Do not make in-memory state the sole record of a completed route, collection, device credential, or alert.
-- Version API contracts and database migrations.
-- Provide structured logs, correlation IDs, error monitoring, health/readiness endpoints, and backup/restore procedures.
-
-### Security and privacy
-
-- Keep all secrets in environment-managed configuration; do not commit credentials or use development default secrets in production.
-- Authenticate devices and rate-limit/replay-protect telemetry endpoints.
-- Use least-privilege roles, server-side authorization, secure cookies/tokens, input validation, and an audit log for privileged actions.
-- Protect driver location and personal data; collect only what operations require, retain it for a defined period, and document access rules.
-- Do not place Wi-Fi passwords, administrative keys, or service-account material in browser-delivered JavaScript, logs, exports, or routine API responses.
-
-### Performance and scale
-
-- Define pilot load explicitly before launch (number of bins, devices, concurrent dispatchers/drivers, telemetry interval, and planned route size).
-- Under that load, keep normal dashboard/API interactions responsive and measure p95 latency.
-- Bound optimizer work with timeout/cancellation and a clear fallback; never block the Node event loop on a long solve.
-- Paginate/filter operational lists and avoid sending an unbounded telemetry history to the browser.
-
-### Accessibility and usability
-
-- Support keyboard navigation, visible focus states, semantic labels, readable contrast, responsive layouts, and non-color-only status communication.
-- Use clear language for field workflows, optimistic states with rollback/error messages, and confirmation for destructive actions.
-- Validate mobile/tablet use with drivers and dispatchers before treating the workflow as pilot-ready.
-
----
-
-## 8. Current baseline and delivery gaps
-
-The user has set the current project baseline at **10% complete**. The repository contains valuable exploratory assets—static login/admin/driver pages, a Node/Socket.IO server, a Python routing prototype, and tentative Firebase/Supabase/Mappls integrations—but these do not yet constitute a validated operational product.
-
-### Observed prototype assets
-
-- Static admin and driver dashboard UI prototypes.
-- Basic bin/route/alert HTTP endpoints and Socket.IO event emission.
-- A Python LNS-style CVRP prototype plus a JavaScript fallback solver.
-- Tentative Firebase session handling, Supabase access, device provisioning, and mapping hooks.
-
-### High-priority gaps to close before a pilot
-
-1. **Define and enforce the data model.** There are no repository migrations/schema contracts or automated API/data validation tests.
-2. **Secure identities and device access.** Several endpoints appear callable without role middleware; the current development fallback admin key and plaintext-style provisioning flow are not pilot-safe.
-3. **Make persistence authoritative.** The server contains in-memory fallbacks for routes, alerts, device tokens, and collections. These are unsuitable as the primary operational record.
-4. **Stabilize the runtime.** The repository needs an environment template, documented startup flow, a unified frontend/backend origin, deployment configuration, and health/readiness checks for external dependencies.
-5. **Finish end-to-end flows.** Admin actions, route publication, driver collection/exception handling, and reporting must be tested from UI through durable storage and back.
-6. **Validate routing.** The solver must accurately reject infeasible demand/capacity cases, use a clearly identified road-distance source, handle outages/timeouts, and expose inputs/output for review.
-7. **Add test and quality gates.** There are currently no meaningful automated test scripts, linting, type checks, integration tests, or end-to-end tests defined in `package.json`.
-8. **Resolve UX and maintainability defects.** The prototype has placeholder/“coming soon” actions, inconsistent file/link casing, missing referenced pages, and duplicate/overlapping endpoint/solver code that need consolidation.
-
----
-
-## 9. Delivery plan from 10% to release
-
-Percentages are planning checkpoints, not elapsed-time estimates. Each checkpoint is complete only when its acceptance criteria and quality gates pass.
-
-| Cumulative target | Deliverable | Exit criteria |
+| Column | Type / constraint | Notes |
 | --- | --- | --- |
-| 10% → 25% | Product foundation | Approved PRD/data model; environment template; schema migrations; role model; API contract; test/lint setup; secure configuration; local and preview startup documented. |
-| 25% → 45% | Trusted operational data | Secure auth/RBAC; bin/device registry; validated telemetry ingestion; durable telemetry/alert storage; health monitoring; operations list/map with reliable empty/error states. |
-| 45% → 65% | Dispatch MVP | Feasible optimizer contract; draft/review/publish route flow; driver assignment; route versioning; real-time updates; manual dispatcher override. |
-| 65% → 80% | Field execution MVP | Responsive driver route workflow; collection/exception records; offline-safe retry strategy; alert acknowledgement/escalation; dispatcher progress view. |
-| 80% → 90% | Pilot hardening | End-to-end test coverage for P0 flows; security review; load/recovery testing; observability; backup/restore rehearsal; accessibility review; real device test. |
-| 90% → 100% | Controlled pilot release | UAT sign-off with operational users; training/runbook; deployment and rollback plan; live pilot metrics; documented incident/support ownership. |
+| `id` | UUID, primary key | Bin identifier |
+| `mac_address` | String, unique | IoT authentication association |
+| `latitude` / `longitude` | Float | Physical bin location |
+| `max_weight_capacity_kg` | Integer | Lift/weight constraint for the bin |
+| `status` | Enum: `healthy`, `maintenance`, `offline` | Operational device/bin state |
 
-### Suggested implementation order
+### 4.3 `telemetry_logs`
 
-1. Remove ambiguity in deployment/configuration and add a schema/API contract.
-2. Secure all privileged, driver, and device actions before expanding UI capability.
-3. Build the bin → telemetry → alert → map/list workflow end-to-end.
-4. Build route draft → review → publish → driver assignment end-to-end.
-5. Build driver completion/exception → supervisor reporting end-to-end.
-6. Optimize and harden only after the basic workflow is reliable and instrumented.
+| Column | Type / constraint | Notes |
+| --- | --- | --- |
+| `id` | UUID | Telemetry record identifier |
+| `bin_id` | Foreign key | Associated bin |
+| `timestamp` | DateTime | Device-observed event time |
+| `fill_percentage` | Integer, 0–100 | Current fill percentage |
+| `current_weight_kg` | Float | Current measured weight |
+| `hazard_status` | Enum: `safe`, `smoke`, `fire` | Classified hazard state |
+
+### 4.4 `shifts_and_payroll`
+
+| Column | Type / constraint | Notes |
+| --- | --- | --- |
+| `id` | UUID | Shift/payroll record identifier |
+| `driver_id` | Foreign key | Driver/user reference |
+| `clock_in` | DateTime | Shift start time |
+| `clock_out` | DateTime, nullable | Shift end time |
+| `total_bins_collected` | Integer | Verified collection total |
+| `status` | Enum: `in_progress`, `completed`, `approved_for_payroll` | Payroll workflow state |
+
+### 4.5 `routes` and `route_stops`
+
+**`routes`** must contain:
+
+- `id`
+- `driver_id`
+- `vehicle_id`
+- `status` — `draft`, `published`, `active`, or `completed`
+
+**`route_stops`** must contain:
+
+- `route_id`
+- `bin_id`
+- `sequence_order` (Integer)
+- `status` — `pending`, `collected`, or `failed`
+
+### 4.6 Required schema alignment before implementation
+
+The tables above are the required v2.0 baseline. To preserve the mandatory incoming telemetry payload and enforce vehicle constraints, the implementation schema must additionally retain the following data rather than discard it after evaluation:
+
+- `temp_celsius` and `smoke_detected` (or equivalent raw telemetry fields) in `telemetry_logs`, because CRITICAL state depends on them;
+- a device receipt/idempotency field and received timestamp for safe message retry handling;
+- a `vehicles` entity containing at least vehicle ID, weight capacity, volume capacity, heavy-vehicle routing profile, and availability, because `routes.vehicle_id` and the CVRP constraints depend on it;
+- route planning metadata for depot/dump-site, selected constraints, cost-matrix provider, and avoid polygons; and
+- actual stop/collection event data needed to calculate exceptions and route deviations accurately.
+
+These supporting fields clarify and implement the specified P0 behavior; they do not replace the strict tables above.
 
 ---
 
-## 10. Release gates and definition of done
+## 5. Technical Stack Blueprint
 
-The operational MVP is ready for a controlled pilot only when all of the following are true:
+| Layer | Recommended technology | Purpose |
+| --- | --- | --- |
+| **Frontend (unified app)** | React.js or Next.js, built as a Progressive Web App | One installable, responsive experience for desktop operations and mobile drivers without an app-store dependency |
+| **Styling** | Tailwind CSS | Rapid responsive UI adaptation across admin, dispatcher, and driver views |
+| **Backend & API** | Node.js with Express | Application API, authorization, device ingestion, and operational workflow services |
+| **Real-time layer** | Socket.IO | Instant fire/hazard alerts for dispatchers and live route updates for drivers |
+| **Routing engine** | Python microservice using OR-Tools | CVRP optimization logic |
+| **Cost matrix / mapping** | Local OSRM server or Mapbox API | Real-road travel matrix and map/routing support |
+| **Database and authentication** | Supabase (PostgreSQL) | Relational operational data and built-in user authentication |
 
-- All P0 requirements have demonstrable acceptance-test evidence.
-- Authentication, authorization, device validation, and secret handling have been reviewed and tested.
-- There is a migration-managed durable database; critical records do not depend on process memory.
-- A real or representative device successfully completes provisioning/authentication and telemetry ingest.
-- A dispatcher can complete a real end-to-end shift: identify urgent bins, create/review/publish routes, assign driver(s), monitor progress, and export/review outcomes.
-- A driver can execute a route and safely record successful, skipped, and hazardous stops.
-- Route feasibility, fallback behavior, and map-provider degradation are visible and tested.
-- Automated tests cover critical authorization, input validation, telemetry, alert, route, and collection paths; CI blocks regressions.
-- Monitoring, error reporting, backups, a support runbook, and a rollback plan are in place.
-- Pilot users approve usability and operations leads accept the measured performance against the defined pilot load.
+### Architecture requirements
 
----
-
-## 11. Decisions needed before implementation
-
-1. What is the exact pilot geography, number of bins/devices, fleet size, telemetry frequency, and shift model?
-2. Which data store, hosting environment, and map-routing provider are approved for production use?
-3. What vehicles, capacities, depot/disposal constraints, and prioritization policies must the optimizer model?
-4. Which alert thresholds/severity rules are operationally approved, and who owns acknowledgement/escalation?
-5. What is the required identity/role source for admins, dispatchers, drivers, and devices?
-6. Is a web-based responsive driver workflow sufficient for the pilot, or is offline-native mobile support a release requirement?
-7. What evidence is required for a collection (tap, GPS, photo, QR/NFC scan, supervisor review)?
-8. What retention, consent, and privacy rules apply to driver location, device telemetry, and operational audit data?
-9. What baseline collection cost, distance, overflow rate, and service-level metrics will be used to measure value?
+- The frontend must call backend services through same-origin/relative API paths in production and preview environments; browser code must not target `localhost` for backend access.
+- The routing engine must have bounded execution time and return a structured failure result without changing an existing published route.
+- The database is the authoritative operational record. In-memory state may be a cache but must not be the only durable store for routes, alerts, shifts, collections, or payroll data.
+- Secrets, device credentials, map keys, service-account credentials, and administrative keys must be environment-managed and never exposed to the browser or ordinary API logs.
 
 ---
 
-## 12. Assumptions and change control
+## 6. Implementation Phasing: 10% to 100% Roadmap
 
-- This PRD intentionally prioritizes a reliable operations pilot over a broad feature set.
-- Any feature that changes dispatch safety, route feasibility, roles, device security, or personal-data handling requires explicit product and technical review.
-- The roadmap should be revised after field discovery and pilot baseline data are collected.
-- Completion should be reported by verified P0/P1 acceptance criteria, not by the presence of UI screens or prototype code.
+### Phase 1: The Unified Skeleton — current focus
+
+1. Set up the Next.js application with Supabase Auth.
+2. Build the RBAC router:
+   - driver login → mobile shift view;
+   - admin login → desktop dashboard;
+   - dispatcher login → live operations/route-planning view.
+3. Create the Bin Registry database tables and manual creation forms.
+
+**Phase exit:** authenticated users reach the correct single-app experience, role permissions are enforced server-side, and admins can create/manage registered bins in durable storage.
+
+### Phase 2: Hardware Talk
+
+1. Write the Node.js API endpoint to receive `POST` requests from ESP32/microcontroller devices.
+2. Implement the Alert State Machine; for example, if `smoke_detected == true`, trigger a Socket.IO event to the frontend.
+3. Build the dispatcher’s live map view.
+
+**Phase exit:** authenticated device telemetry updates a bin’s durable state/history, the alert state machine produces deduplicated priority alerts, and dispatchers can see live/stale/offline bins on a map.
+
+### Phase 3: The Routing Brain
+
+1. Connect the Python CVRP script to the distance-matrix API.
+2. Build the dispatcher UI for **Generate Shift Routes**.
+3. Save generated optimal routes to the `routes` database table.
+
+**Phase exit:** dispatcher-approved routes use real road-network cost data, respect truck weight/volume and heavy-vehicle constraints, include depot/dump-site return logic, and are persisted for assigned drivers.
+
+### Phase 4: Execution & HR
+
+1. Complete the driver mobile view: **Start Route**, tap bins to complete them, and enforce GPS-radius checks.
+2. Build the HR dashboard: a table summarizing completed shifts, calculated wages, and CSV export.
+
+**Phase exit:** a driver can complete an entire shift with verifiable collection/exception records; admins can review and approve payroll-ready data and export it to the municipality’s salary payout structure.
+
+---
+
+## 7. Release Guardrails
+
+Waste-Wise is ready for a controlled operational pilot only when:
+
+- the unified PWA supports all three roles through server-enforced RBAC;
+- every accepted device message is authenticated, validated, and stored durably;
+- smoke/fire and temperature-over-65°C events create immediate, testable critical alerts;
+- every published route is based on a real road-network cost matrix and respects configured truck weight and volume capacity;
+- heavy-vehicle restrictions and dispatcher avoid polygons are represented in the routing workflow;
+- driver location collection is active only during shifts, and collection clearances enforce the 50-meter rule;
+- shift, route, collection, deviation, and payroll records have an auditable history; and
+- the HR CSV export reconciles with approved completed shifts and configured wage data.
+
+## 8. Source-of-Truth Principles
+
+1. A UI screen or prototype endpoint does not count as completed functionality until its full role, persistence, validation, and error path is tested.
+2. Road-aware heavy-vehicle routing is mandatory for published operational routes; straight-line/Haversine results are not a production substitute.
+3. Safety alerts take priority over routine route optimization.
+4. Driver privacy is protected by limiting location tracking to active shifts.
+5. Payroll is calculated from verified operational records and must remain traceable after export or approval.
