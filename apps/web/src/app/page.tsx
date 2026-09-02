@@ -47,7 +47,7 @@ export default function Home() {
           </p>
           <div className="marketing-hero__actions">
             <Link className="primary-button" href="/login">Start the 3-minute demo <ArrowRight size={18} /></Link>
-            <a className="quiet-button quiet-button--marketing" href="#foundation">See demo flow <ArrowDownIcon /></a>
+            <Link className="quiet-button quiet-button--marketing" href="/setup">Add your real bins <MapPinned size={17} /></Link>
           </div>
           <div className="marketing-hero__trust">
             <span><CheckCircle2 size={16} /> Safety alerts</span>
@@ -119,13 +119,13 @@ export default function Home() {
             <span className="section-kicker">Ready for the presentation</span>
             <h2>One clickable prototype for every role.</h2>
             <p>
-              The showcase runs on deterministic Ahmedabad sample data, so every route, alert, and field interaction works without an internet connection or external API key.
+              Add up to 10 of your own Ahmedabad dustbin addresses, verify their pins on OpenStreetMap, and show their local visit order across Dispatcher and Driver views.
             </p>
           </div>
           <ul>
             <li><CheckCircle2 size={17} /> Dispatcher, Driver & Admin views</li>
-            <li><CheckCircle2 size={17} /> Local demo route optimization</li>
-            <li><CheckCircle2 size={17} /> No external API dependency</li>
+            <li><CheckCircle2 size={17} /> Your real bin addresses and map pins</li>
+            <li><CheckCircle2 size={17} /> Local visit ordering for up to 10 bins</li>
           </ul>
           <Link className="primary-button" href="/login">Open showcase workspace <ArrowRight size={18} /></Link>
         </div>
@@ -138,10 +138,6 @@ export default function Home() {
       </footer>
     </main>
   );
-}
-
-function ArrowDownIcon() {
-  return <span className="arrow-down-icon" aria-hidden="true">↓</span>;
 }
 
 function MoreDots() {

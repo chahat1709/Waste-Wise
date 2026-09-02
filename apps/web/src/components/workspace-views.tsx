@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";
 
@@ -16,10 +18,10 @@ import {
   Gauge,
   LocateFixed,
   MapPinned,
-  MoreHorizontal,
   Navigation,
   Pause,
   Play,
+  Plus,
   Radio,
   RefreshCw,
   Route,
@@ -28,17 +30,31 @@ import {
   Siren,
   Sparkles,
   Timer,
-  Truck,
   UsersRound,
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { alerts, demoRouteSummary, fleet, routeStops, shiftRows } from "@/lib/demo-data";
-import type { AlertItem, AlertSeverity, RouteStop, RouteStopStatus } from "@/lib/domain";
+import { shiftRows } from "@/lib/demo-data";
+import type { RouteStopStatus } from "@/lib/domain";
 import { enqueueOfflineCommand, type OfflineCommandType } from "@/lib/offline/outbox";
+import {
+  createLocalShowcaseRoute,
+  isLocatedBin,
+  MAX_SHOWCASE_BINS,
+  orderedShowcaseBins,
+} from "@/lib/showcase/bins";
+import { useShowcaseConfiguration } from "@/lib/showcase/storage";
+
+const OpenStreetMapBinMap = dynamic(
+  () => import("@/components/open-street-map-bin-map").then((module) => module.OpenStreetMapBinMap),
+  {
+    ssr: false,
+    loading: () => <div className="map-loading-state">Loading OpenStreetMap…</div>,
+  },
+);
 
 function MetricCard({
   label,
@@ -65,17 +81,6 @@ function MetricCard({
       </div>
     </article>
   );
-}
-
-function SeverityBadge({ severity }: { severity: AlertSeverity }) {
-  const labels: Record<AlertSeverity, string> = {
-    critical: "Critical",
-    high: "High",
-    warning: "Warning",
-    info: "Info",
-  };
-
-  return <span className={`severity-badge severity-badge--${severity}`}>{labels[severity]}</span>;
 }
 
 function StopStatus({ status }: { status: RouteStopStatus }) {
@@ -116,11 +121,26 @@ function createOfflineCommandId() {
 }
 
 export function DriverWorkspace() {
+  const { configuration } = useShowcaseConfiguration();
   const [onShift, setOnShift] = useState(false);
-  const [stops, setStops] = useState<RouteStop[]>(routeStops);
+  const [stopStatuses, setStopStatuses] = useState<Record<string, RouteStopStatus>>({});
   const [lastMessage, setLastMessage] = useState("Your shift is not active. Location sharing remains paused.");
   const [sosRaised, setSosRaised] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+
+  const orderedBins = useMemo(() => orderedShowcaseBins(configuration), [configuration]);
+  const stops = useMemo(
+    () => orderedBins.map((bin, index) => ({
+      id: bin.id,
+      sequence: index + 1,
+      name: bin.name || bin.id,
+      address: bin.address,
+      fillPercent: bin.fillPercent,
+      capacityKg: bin.capacityKg,
+      status: stopStatuses[bin.id] ?? "pending",
+    })),
+    [orderedBins, stopStatuses],
+  );
 
   useEffect(() => {
     const updateConnectivity = () => setIsOnline(navigator.onLine);
@@ -147,7 +167,7 @@ export function DriverWorkspace() {
   }
 
   const completedStops = stops.filter((stop) => stop.status === "collected").length;
-  const progress = Math.round((completedStops / stops.length) * 100);
+  const progress = Math.round((completedStops / Math.max(stops.length, 1)) * 100);
   const nextStop = stops.find((stop) => stop.status === "pending") ?? stops[stops.length - 1];
 
   function toggleShift() {
@@ -156,8 +176,8 @@ export function DriverWorkspace() {
     setSosRaised(false);
     setLastMessage(
       nextState
-        ? "Shift started at 08:42. Location sharing is active while you are on duty."
-        : "Shift ended. Location sharing has stopped and your route is locked.",
+        ? "Shift preview started. The location-sharing indicator is active, but no live GPS is transmitted in this prototype."
+        : "Shift preview ended. The location-sharing indicator is paused and your route is locked.",
     );
   }
 
@@ -168,12 +188,12 @@ export function DriverWorkspace() {
     }
 
     const stop = stops.find((item) => item.id === stopId);
-    setStops((current) => current.map((item) => (item.id === stopId ? { ...item, status } : item)));
+    setStopStatuses((current) => ({ ...current, [stopId]: status }));
     const statusCopy: Record<RouteStopStatus, string> = {
       pending: "reset to pending",
-      collected: "marked collected after GPS proof",
-      inaccessible: "marked inaccessible and sent to dispatch",
-      damaged: "marked damaged and escalated to dispatch",
+      collected: "marked collected in this local showcase",
+      inaccessible: "marked inaccessible in this local showcase",
+      damaged: "marked damaged in this local showcase",
     };
     const queued = await queueWhenOffline(
       status === "collected" ? "collection.record" : "route-stop.skip",
@@ -209,12 +229,25 @@ export function DriverWorkspace() {
     );
   }
 
+  if (!nextStop) {
+    return (
+      <AppShell role="driver" eyebrow="Real bins not configured" title="Your route is ready for setup" subtitle="Add your dustbin addresses first, then return here to demonstrate the driver experience.">
+        <section className="workspace-empty-state">
+          <span className="workspace-empty-state__icon"><MapPinned size={24} /></span>
+          <h2>Add your real Ahmedabad dustbins</h2>
+          <p>Configure up to 10 bin addresses, locate them on OpenStreetMap, and the route will appear here in the saved order.</p>
+          <Link className="primary-button" href="/setup">Configure real bins <ChevronRight size={17} /></Link>
+        </section>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell
       role="driver"
-      eyebrow={onShift ? "Shift active · GPS sharing on" : "Shift ready · GPS sharing paused"}
-      title={onShift ? "Route R-AMD-091" : "Good morning, Arjun"}
-      subtitle={onShift ? "Ahmedabad West Zone route · 4 planned stops" : "Start your shift to unlock today’s verified collection route."}
+      eyebrow={onShift ? "Shift preview active · GPS indicator on" : "Real bin route · GPS indicator paused"}
+      title={onShift ? `Route ${configuration.routePlan?.id ?? "R-AMD-DEMO-01"}` : "Your Ahmedabad route"}
+      subtitle={onShift ? `${stops.length} real bin stop${stops.length === 1 ? "" : "s"} · local showcase route` : "Start your shift to demonstrate service verification on your real bin locations."}
     >
       <section className="driver-hero-grid">
         <article className={`shift-card ${onShift ? "shift-card--active" : ""}`}>
@@ -224,7 +257,7 @@ export function DriverWorkspace() {
               <h2>{onShift ? "You are on duty" : "Ready when you are"}</h2>
             </div>
             <span className={`live-status ${onShift ? "live-status--active" : ""}`}>
-              <i aria-hidden="true" /> {onShift ? "Live" : "Standby"}
+              <i aria-hidden="true" /> {onShift ? "Preview" : "Standby"}
             </span>
           </div>
           <p>
@@ -250,8 +283,8 @@ export function DriverWorkspace() {
 
         <article className="next-stop-card">
           <div className="next-stop-card__head">
-            <span className="section-kicker">Next verified stop</span>
-            <span className="eta-chip"><Timer size={14} /> ETA {nextStop.eta}</span>
+            <span className="section-kicker">Next real bin stop</span>
+            <span className="eta-chip"><Timer size={14} /> Stop {nextStop.sequence} of {stops.length}</span>
           </div>
           <div className="next-stop-card__content">
             <span className="route-number">{nextStop.sequence.toString().padStart(2, "0")}</span>
@@ -262,8 +295,8 @@ export function DriverWorkspace() {
           </div>
           <div className="next-stop-card__measurements">
             <span><Gauge size={15} /> {nextStop.fillPercent}% full</span>
-            <span><Fuel size={15} /> {nextStop.weightKg} kg</span>
-            <span><LocateFixed size={15} /> 50 m proof required</span>
+            <span><Fuel size={15} /> {nextStop.capacityKg ? `${nextStop.capacityKg} kg capacity` : "capacity not set"}</span>
+            <span><LocateFixed size={15} /> real address saved</span>
           </div>
         </article>
       </section>
@@ -294,8 +327,8 @@ export function DriverWorkspace() {
                     <StopStatus status={stop.status} />
                   </div>
                   <div className="route-stop__meta">
-                    <span><Clock3 size={14} /> {stop.eta}</span>
-                    <span><Fuel size={14} /> {stop.weightKg} kg</span>
+                    <span><Route size={14} /> Stop {stop.sequence} of {stops.length}</span>
+                    <span><Fuel size={14} /> {stop.capacityKg ? `${stop.capacityKg} kg capacity` : "capacity not set"}</span>
                     <span><Crosshair size={14} /> Verify within 50 m</span>
                   </div>
                   {stop.status === "pending" && (
@@ -337,22 +370,12 @@ export function DriverWorkspace() {
             <div className="panel-heading panel-heading--compact">
               <div>
                 <span className="section-kicker">Route overview</span>
-                <h2>Ahmedabad West Zone · 7.8 km</h2>
+                <h2>{configuration.routePlan ? `${configuration.routePlan.estimatedDistanceKm} km local route` : `${stops.length} configured stops`}</h2>
               </div>
               <Navigation size={19} className="muted-icon" />
             </div>
-            <div className="mini-map" aria-label="Illustrative route preview">
-              <svg viewBox="0 0 300 160" role="img" aria-label="Planned collection route with four stops">
-                <path className="mini-map__road" d="M-5 120 C50 105 68 32 126 58 S181 153 231 103 S286 29 312 45" />
-                <path className="mini-map__route" d="M14 126 C53 104 70 36 126 59 S180 148 230 105 S279 38 301 45" />
-                {[{ x: 14, y: 126 }, { x: 126, y: 59 }, { x: 230, y: 105 }, { x: 301, y: 45 }].map((point, index) => (
-                  <g key={index}>
-                    <circle className={`mini-map__stop mini-map__stop--${index === 0 ? "start" : "target"}`} cx={point.x} cy={point.y} r="8" />
-                    <text x={point.x} y={point.y + 3.5} textAnchor="middle">{index + 1}</text>
-                  </g>
-                ))}
-              </svg>
-              <span className="mini-map__label">Local showcase route · no external map/API required</span>
+            <div className="driver-real-map" aria-label="Your real bin route on OpenStreetMap">
+              <OpenStreetMapBinMap configuration={configuration} compact />
             </div>
           </article>
         </aside>
@@ -362,127 +385,123 @@ export function DriverWorkspace() {
 }
 
 export function DispatchWorkspace() {
-  const [alertItems, setAlertItems] = useState<AlertItem[]>(alerts);
+  const { configuration, updateConfiguration } = useShowcaseConfiguration();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [hasOptimizedRoute, setHasOptimizedRoute] = useState(false);
-  const [isRoutePublished, setIsRoutePublished] = useState(false);
-  const [showAvoidArea, setShowAvoidArea] = useState(true);
-  const [routeMessage, setRouteMessage] = useState("Select Optimize demo routes to run the local Ahmedabad showcase scenario.");
+  const [routeMessage, setRouteMessage] = useState("Configure and locate your real Ahmedabad bin addresses to build a route.");
 
-  const openAlerts = alertItems.filter((alert) => !alert.acknowledged).length;
-
-  function acknowledgeAlert(id: string) {
-    setAlertItems((current) => current.map((alert) => (alert.id === id ? { ...alert, acknowledged: true } : alert)));
-  }
+  const locatedBins = useMemo(() => configuration.bins.filter(isLocatedBin), [configuration.bins]);
+  const orderedBins = useMemo(() => orderedShowcaseBins(configuration), [configuration]);
+  const priorityBins = useMemo(
+    () => configuration.bins.filter((bin) => bin.fillPercent >= 85),
+    [configuration.bins],
+  );
+  const routePlan = configuration.routePlan;
 
   function generateRoutes() {
+    if (configuration.bins.length === 0) {
+      setRouteMessage("Add your real bin addresses in Configure real bins before building a route.");
+      return;
+    }
+    if (locatedBins.length === 0) {
+      setRouteMessage("Locate at least one real bin address on the map before building a route.");
+      return;
+    }
+    if (locatedBins.length !== configuration.bins.length) {
+      setRouteMessage(`Locate the remaining ${configuration.bins.length - locatedBins.length} bin address${configuration.bins.length - locatedBins.length === 1 ? "" : "es"} before building the final route.`);
+      return;
+    }
+
     setIsGenerating(true);
-    setHasOptimizedRoute(false);
-    setIsRoutePublished(false);
-    setRouteMessage("Optimizing Ahmedabad bins, demo fleet, capacities, and safety exclusions…");
+    setRouteMessage("Ordering your real Ahmedabad bin locations by local proximity…");
     window.setTimeout(() => {
+      const plan = createLocalShowcaseRoute(configuration);
       setIsGenerating(false);
-      setHasOptimizedRoute(true);
-      setRouteMessage("Demo route ready. This result is deterministic and requires no internet, map key, or provider account.");
-    }, 800);
+      if (!plan) {
+        setRouteMessage("No mapped bin locations were available. Check your address lookup or coordinates.");
+        return;
+      }
+      updateConfiguration({ ...configuration, routePlan: plan });
+      setRouteMessage("Your real bin visit order is ready. This prototype uses local straight-line proximity, not a live road-routing API.");
+    }, 650);
   }
 
   function publishDemoRoute() {
-    if (!hasOptimizedRoute) {
-      setRouteMessage("Optimize the demo route before publishing it to the driver showcase.");
+    if (!routePlan) {
+      setRouteMessage("Build the local route order before publishing it to the driver showcase.");
       return;
     }
-    setIsRoutePublished(true);
-    setRouteMessage(`${demoRouteSummary.routeName} is published to the local driver showcase. No real driver or vehicle was notified.`);
+    updateConfiguration({
+      ...configuration,
+      routePlan: { ...routePlan, publishedAt: new Date().toISOString() },
+    });
+    setRouteMessage(`${routePlan.id} is now available in the driver showcase. No real driver was notified.`);
   }
 
   return (
     <AppShell
       role="dispatcher"
-      eyebrow="Ahmedabad control centre · 3 trucks active"
-      title="Operations command centre"
-      subtitle="Prioritize safety signals, coordinate the fleet, and publish only feasible routes."
+      eyebrow={`Ahmedabad control centre · ${configuration.bins.length} real bin${configuration.bins.length === 1 ? "" : "s"} configured`}
+      title="Your real bin operations map"
+      subtitle="Display your own dustbin locations, review fill levels, and demonstrate the collection workflow."
     >
       <section className="metric-grid metric-grid--four">
-        <MetricCard label="Priority alerts" value={openAlerts.toString().padStart(2, "0")} detail="2 need acknowledgement" tone="rose" icon={BellRing} />
-        <MetricCard label="Bins due today" value="48" detail="12 above 90% fill" tone="amber" icon={Gauge} />
-        <MetricCard label="Fleet on route" value="03 / 05" detail="2 vehicles available" tone="blue" icon={Truck} />
-        <MetricCard label="Collections verified" value="76" detail="+18% vs last shift" tone="mint" icon={Check} />
+        <MetricCard label="Real bins added" value={String(configuration.bins.length).padStart(2, "0")} detail={`up to ${MAX_SHOWCASE_BINS} for this prototype`} tone="blue" icon={MapPinned} />
+        <MetricCard label="Locations on map" value={String(locatedBins.length).padStart(2, "0")} detail={`${Math.max(configuration.bins.length - locatedBins.length, 0)} still need locating`} tone="mint" icon={LocateFixed} />
+        <MetricCard label="Priority bins" value={String(priorityBins.length).padStart(2, "0")} detail="manual fill level at 85%+" tone="amber" icon={BellRing} />
+        <MetricCard label="Route status" value={routePlan?.publishedAt ? "Shared" : routePlan ? "Ready" : "Setup"} detail={routePlan?.publishedAt ? "shown in Driver view" : "build when locations are ready"} tone={routePlan?.publishedAt ? "mint" : "rose"} icon={Route} />
       </section>
 
       <section className="dispatch-grid" id="activity">
-        <article className="panel operations-map-panel">
+        <article className="panel real-map-panel">
           <div className="panel-heading">
             <div>
-              <span className="section-kicker">Live operations map</span>
-              <h2>Safety-first collection demand</h2>
+              <span className="section-kicker">Your locations on OpenStreetMap</span>
+              <h2>Ahmedabad dustbin map</h2>
             </div>
-            <div className="map-controls">
-              <button className="map-control" type="button" onClick={() => setRouteMessage("Map re-centred on the Ahmedabad West Zone showcase area.")}><LocateFixed size={16} /> Re-centre</button>
-              <button className="map-control" type="button" onClick={() => {
-                setShowAvoidArea((current) => !current);
-                setRouteMessage(showAvoidArea ? "Demo safety exclusion hidden from the map." : "Demo safety exclusion displayed for dispatcher review.");
-              }}><MapPinned size={16} /> {showAvoidArea ? "Hide avoid area" : "Show avoid area"}</button>
-            </div>
+            <Link className="map-control" href="/setup"><MapPinned size={16} /> Configure bins</Link>
           </div>
-          <div className={`operations-map ${showAvoidArea ? "" : "operations-map--without-avoid"}`} aria-label="Illustrative Ahmedabad municipal operations map">
-            <span className="map-label map-label--one">Navrangpura</span>
-            <span className="map-label map-label--two">Vastrapur</span>
-            <span className="map-label map-label--three">SG Highway</span>
-            <svg className="operations-map__roads" viewBox="0 0 700 375" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M-20 310 C110 250 140 30 310 95 S400 330 512 248 S590 65 735 88" />
-              <path d="M30 40 C150 128 192 109 267 159 S434 134 529 84 S610 182 731 270" />
-              <path d="M-10 200 C136 169 224 248 342 218 S558 158 708 190" />
-            </svg>
-            <svg className={`operations-map__route ${hasOptimizedRoute ? "operations-map__route--optimized" : ""}`} viewBox="0 0 700 375" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M80 292 C178 229 190 90 312 117 S395 309 515 247 S594 100 663 107" />
-            </svg>
-            <span className="truck-marker truck-marker--one"><Truck size={15} /></span>
-            <span className="truck-marker truck-marker--two"><Truck size={15} /></span>
-            <button className="bin-marker bin-marker--critical" type="button" aria-label="Critical smoke alert at BIN-AMD-1098" onClick={() => setRouteMessage("Prahlad Nagar safety alert selected in the local showcase.")}><Siren size={13} /></button>
-            <button className="bin-marker bin-marker--high" type="button" aria-label="High fill alert at BIN-AMD-1024" onClick={() => setRouteMessage("Navrangpura high-fill bin selected in the local showcase.")}><Gauge size={13} /></button>
-            <button className="bin-marker bin-marker--warning" type="button" aria-label="Warning bin"><Gauge size={13} /></button>
-            <button className="bin-marker bin-marker--normal" type="button" aria-label="Normal bin"><Gauge size={13} /></button>
-            <div className="map-legend">
-              <span><i className="map-legend__dot map-legend__dot--critical" /> Critical</span>
-              <span><i className="map-legend__dot map-legend__dot--high" /> High</span>
-              <span><i className="map-legend__dot map-legend__dot--normal" /> Normal</span>
-              <span><i className="map-legend__line" /> Active route</span>
+          {locatedBins.length > 0 ? (
+            <OpenStreetMapBinMap configuration={configuration} />
+          ) : (
+            <div className="real-map-empty-state">
+              <span><MapPinned size={25} /></span>
+              <h3>Add your first real bin location</h3>
+              <p>Enter an Ahmedabad address and select Locate. Your own dustbin pins will appear here.</p>
+              <Link className="primary-button" href="/setup">Configure real bins <ChevronRight size={17} /></Link>
             </div>
-          </div>
+          )}
           <div className="map-footnote">
-            <Radio size={15} /> Ahmedabad locations, routes, trucks, and alerts are generated locally for this stable showcase.
+            <Radio size={15} /> OpenStreetMap displays your configured locations. Fill levels are entered manually; no live sensor data is connected.
           </div>
         </article>
 
-        <aside className="panel alert-panel" id="safety">
+        <aside className="panel bin-status-panel" id="safety">
           <div className="panel-heading panel-heading--compact">
             <div>
-              <span className="section-kicker">Safety centre</span>
-              <h2>Needs attention</h2>
+              <span className="section-kicker">Real bin status</span>
+              <h2>Collection demand</h2>
             </div>
-            <button className="text-button" type="button">View all <ChevronRight size={15} /></button>
+            <Link className="text-button" href="/setup">Edit bins <ChevronRight size={15} /></Link>
           </div>
-          <div className="alert-list">
-            {alertItems.map((alert) => (
-              <article className={`alert-row alert-row--${alert.severity}`} key={alert.id}>
-                <div className="alert-row__indicator" aria-hidden="true">
-                  {alert.severity === "critical" ? <Siren size={17} /> : <AlertTriangle size={17} />}
-                </div>
-                <div className="alert-row__body">
-                  <div className="alert-row__meta"><SeverityBadge severity={alert.severity} /><span>{alert.time}</span></div>
-                  <h3>{alert.title}</h3>
-                  <p>{alert.description}</p>
-                  <span className="alert-row__location"><MapPinned size={13} /> {alert.location}</span>
-                  {!alert.acknowledged ? (
-                    <button className="inline-action" type="button" onClick={() => acknowledgeAlert(alert.id)}>Acknowledge <ChevronRight size={14} /></button>
-                  ) : (
-                    <span className="acknowledged"><Check size={13} /> Acknowledged</span>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
+          {configuration.bins.length === 0 ? (
+            <div className="bin-status-panel__empty"><MapPinned size={20} /><p>Your configured bin details will appear here.</p></div>
+          ) : (
+            <div className="real-bin-list">
+              {orderedBins.map((bin, index) => {
+                const level = bin.fillPercent >= 90 ? "critical" : bin.fillPercent >= 85 ? "high" : bin.fillPercent >= 70 ? "warning" : "normal";
+                return (
+                  <article className={`real-bin-row real-bin-row--${level}`} key={bin.id}>
+                    <span className="real-bin-row__number">{String(index + 1).padStart(2, "0")}</span>
+                    <div className="real-bin-row__body">
+                      <div><strong>{bin.name || bin.id}</strong><span>{bin.id}</span></div>
+                      <p><MapPinned size={13} /> {bin.address}</p>
+                      <div className="real-bin-row__meta"><span><Gauge size={13} /> {bin.fillPercent}% full</span><span>{isLocatedBin(bin) ? "Pin ready" : "Needs location"}</span></div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </aside>
       </section>
 
@@ -490,36 +509,36 @@ export function DispatchWorkspace() {
         <article className="panel planner-panel">
           <div className="planner-panel__topline">
             <div>
-              <span className="section-kicker">Showcase route planner</span>
-              <h2>Generate feasible collection routes</h2>
-              <p>A safe, presentation-ready simulation of demand, vehicle capacity, stop order, and dispatcher review.</p>
+              <span className="section-kicker">Local route ordering</span>
+              <h2>Build a visit sequence for your bins</h2>
+              <p>For this offline-friendly prototype, the route order is calculated from your actual map-pin proximity. Connect a road-routing API later for traffic-aware distance and ETA.</p>
             </div>
-            <div className="planner-status"><Sparkles size={16} /> Local demo mode</div>
+            <div className="planner-status"><Sparkles size={16} /> No API key required</div>
           </div>
           <div className="planner-panel__inputs">
-            <span><Truck size={16} /> 3 demo vehicles</span>
-            <span><Gauge size={16} /> 48 Ahmedabad bins</span>
-            <span><MapPinned size={16} /> 2 demo safety areas</span>
-            <span><Clock3 size={16} /> Demo shift: 08:00–16:30</span>
+            <span><MapPinned size={16} /> {configuration.bins.length} real bins entered</span>
+            <span><LocateFixed size={16} /> {locatedBins.length} locations ready</span>
+            <span><Gauge size={16} /> {priorityBins.length} priority bins</span>
+            <span><Navigation size={16} /> {routePlan ? "route sequence built" : "route not built"}</span>
           </div>
 
-          {hasOptimizedRoute && (
+          {routePlan && (
             <div className="demo-route-result" aria-live="polite">
               <div className="demo-route-result__heading">
-                <span><Check size={15} /> Demo optimization complete</span>
-                <strong>{demoRouteSummary.routeName}</strong>
+                <span><Check size={15} /> Your real bin order is ready</span>
+                <strong>{routePlan.id}</strong>
               </div>
               <div className="demo-route-result__metrics">
-                <span><strong>{demoRouteSummary.assignedTrucks}</strong> trucks assigned</span>
-                <span><strong>{demoRouteSummary.totalBins}</strong> bins covered</span>
-                <span><strong>{demoRouteSummary.totalDistanceKm} km</strong> planned distance</span>
-                <span><strong>{demoRouteSummary.distanceSavedPercent}%</strong> shorter route</span>
+                <span><strong>{routePlan.orderedBinIds.length}</strong> real bins sequenced</span>
+                <span><strong>{routePlan.estimatedDistanceKm} km</strong> approx. local proximity path</span>
+                <span><strong>{priorityBins.length}</strong> high-fill bins checked</span>
+                <span><strong>{routePlan.publishedAt ? "Shared" : "Draft"}</strong> driver demo status</span>
               </div>
               <div className="demo-route-result__footer">
-                <span><Clock3 size={14} /> Est. completion: {demoRouteSummary.estimatedDuration}</span>
-                <button className={`publish-demo-button ${isRoutePublished ? "publish-demo-button--published" : ""}`} type="button" onClick={publishDemoRoute}>
-                  {isRoutePublished ? <Check size={15} /> : <Route size={15} />}
-                  {isRoutePublished ? "Published to driver demo" : "Publish demo route"}
+                <span><Clock3 size={14} /> Generated from stored map coordinates</span>
+                <button className={`publish-demo-button ${routePlan.publishedAt ? "publish-demo-button--published" : ""}`} type="button" onClick={publishDemoRoute}>
+                  {routePlan.publishedAt ? <Check size={15} /> : <Route size={15} />}
+                  {routePlan.publishedAt ? "Published to Driver view" : "Publish to Driver view"}
                 </button>
               </div>
             </div>
@@ -529,31 +548,28 @@ export function DispatchWorkspace() {
             <p className="interaction-message" role="status">{routeMessage}</p>
             <button className="primary-button" type="button" onClick={generateRoutes} disabled={isGenerating}>
               {isGenerating ? <RefreshCw className="spin" size={17} /> : <Route size={17} />}
-              {isGenerating ? "Optimizing…" : hasOptimizedRoute ? "Run demo again" : "Optimize demo routes"}
+              {isGenerating ? "Ordering locations…" : routePlan ? "Rebuild local route" : "Build local route"}
             </button>
           </div>
         </article>
 
-        <article className="panel fleet-panel">
+        <article className="panel route-order-panel">
           <div className="panel-heading panel-heading--compact">
             <div>
-              <span className="section-kicker">Fleet pulse</span>
-              <h2>Demo fleet availability</h2>
+              <span className="section-kicker">Driver hand-off</span>
+              <h2>{routePlan ? "Visit sequence" : "What the Driver sees"}</h2>
             </div>
-            <button className="icon-button" type="button" aria-label="More fleet options"><MoreHorizontal size={20} /></button>
+            <Navigation size={19} className="muted-icon" />
           </div>
-          <div className="fleet-list">
-            {fleet.map((vehicle) => (
-              <article className="fleet-row" key={vehicle.id}>
-                <span className={`fleet-row__vehicle fleet-row__vehicle--${vehicle.status.toLowerCase().replace(" ", "-")}`}><Truck size={16} /></span>
-                <div className="fleet-row__details">
-                  <div><strong>{vehicle.id}</strong><span>{vehicle.driver}</span></div>
-                  <RouteProgress progress={vehicle.progress} />
-                </div>
-                <div className="fleet-row__status"><strong>{vehicle.status}</strong><span>{vehicle.load}</span></div>
-              </article>
-            ))}
-          </div>
+          {orderedBins.length === 0 ? (
+            <div className="route-order-panel__empty">Add and save your real bins to preview the driver route.</div>
+          ) : (
+            <ol className="route-order-list">
+              {orderedBins.map((bin, index) => (
+                <li key={bin.id}><span>{index + 1}</span><div><strong>{bin.name || bin.id}</strong><small>{bin.address}</small></div><Gauge size={15} /></li>
+              ))}
+            </ol>
+          )}
         </article>
       </section>
     </AppShell>
@@ -561,7 +577,9 @@ export function DispatchWorkspace() {
 }
 
 export function AdminWorkspace() {
+  const { configuration } = useShowcaseConfiguration();
   const [exportStatus, setExportStatus] = useState("Showcase payroll data is ready for a local CSV preview.");
+  const locatedBinCount = configuration.bins.filter(isLocatedBin).length;
 
   return (
     <AppShell
@@ -574,7 +592,7 @@ export function AdminWorkspace() {
         <MetricCard label="Active staff" value="42" detail="39 on active roster" tone="mint" icon={UsersRound} />
         <MetricCard label="Open shifts" value="06" detail="3 routes in progress" tone="blue" icon={Clock3} />
         <MetricCard label="Payroll pending" value="₹ 84,260" detail="11 shifts await approval" tone="amber" icon={ArrowDownToLine} />
-        <MetricCard label="Vehicles healthy" value="08 / 10" detail="2 need maintenance review" tone="rose" icon={Truck} />
+        <MetricCard label="Real bins mapped" value={`${locatedBinCount} / ${configuration.bins.length}`} detail="saved in this browser" tone="rose" icon={MapPinned} />
       </section>
 
       <section className="admin-primary-grid" id="activity">
@@ -631,16 +649,29 @@ export function AdminWorkspace() {
         <article className="panel vehicle-registry-panel">
           <div className="panel-heading panel-heading--compact">
             <div>
-              <span className="section-kicker">Vehicle registry</span>
-              <h2>Fleet capability</h2>
+              <span className="section-kicker">Your real bin registry</span>
+              <h2>Configured dustbin locations</h2>
             </div>
-            <button className="text-button" type="button">Manage vehicles <ChevronRight size={15} /></button>
+            <Link className="text-button" href="/setup">Manage bins <ChevronRight size={15} /></Link>
           </div>
-          <div className="vehicle-grid">
-            <article className="vehicle-card vehicle-card--ready"><span><Truck size={18} /> TRK-AMD-14</span><strong>5.0 t · 18 m³</strong><small><i /> Ready for demo dispatch</small></article>
-            <article className="vehicle-card vehicle-card--ready"><span><Truck size={18} /> TRK-AMD-21</span><strong>4.0 t · 14 m³</strong><small><i /> Ready for demo dispatch</small></article>
-            <article className="vehicle-card vehicle-card--service"><span><Truck size={18} /> TRK-AMD-03</span><strong>4.5 t · 16 m³</strong><small><i /> Service due Friday</small></article>
-          </div>
+          {configuration.bins.length === 0 ? (
+            <div className="vehicle-grid__empty">
+              <MapPinned size={19} />
+              <span>Add your real Ahmedabad dustbins to show them across Dispatcher and Driver views.</span>
+              <Link className="text-button" href="/setup">Configure bins <ChevronRight size={15} /></Link>
+            </div>
+          ) : (
+            <div className="vehicle-grid">
+              {configuration.bins.slice(0, 3).map((bin) => (
+                <article className={`vehicle-card ${isLocatedBin(bin) ? "vehicle-card--ready" : "vehicle-card--service"}`} key={bin.id}>
+                  <span><MapPinned size={18} /> {bin.name || bin.id}</span>
+                  <strong>{bin.id}</strong>
+                  <small><i /> {bin.fillPercent}% full · {isLocatedBin(bin) ? "map pin ready" : "needs location"}</small>
+                </article>
+              ))}
+              {configuration.bins.length > 3 && <article className="vehicle-card vehicle-card--more"><span><Plus size={18} /> More real bins</span><strong>+{configuration.bins.length - 3} configured</strong><small>View all locations in Dispatcher</small></article>}
+            </div>
+          )}
         </article>
 
         <article className="panel roster-panel" id="help">

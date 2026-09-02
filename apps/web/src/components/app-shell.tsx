@@ -35,6 +35,7 @@ const roleNavigation = [
 ];
 
 const sharedNavigation = [
+  { href: "/setup", label: "Configure real bins", icon: Map },
   { href: "#activity", label: "Activity", icon: ClipboardList },
   { href: "#safety", label: "Safety centre", icon: ShieldCheck },
   { href: "#help", label: "Help & runbooks", icon: CircleHelp },
@@ -108,7 +109,7 @@ export function AppShell({ role, eyebrow, title, subtitle, children }: AppShellP
             <ShieldCheck size={17} aria-hidden="true" />
             <span>
               <strong>Role-aware by design</strong>
-              <small>Local Ahmedabad demo data</small>
+              <small>Real bin records stay local</small>
             </span>
           </div>
           <Link className="sidebar-settings" href="/login">
@@ -148,9 +149,8 @@ export function AppShell({ role, eyebrow, title, subtitle, children }: AppShellP
           </div>
 
           <div className="workspace-header__actions">
-            <button className="header-alert-button" type="button" aria-label="Open alerts">
+            <button className="header-alert-button" type="button" aria-label="Showcase notifications are not connected" title="Notifications are not connected in showcase mode">
               <Bell size={18} />
-              <span className="header-alert-button__count">2</span>
             </button>
             <button className="profile-chip" type="button">
               <span className="profile-chip__avatar" aria-hidden="true">
@@ -168,9 +168,9 @@ export function AppShell({ role, eyebrow, title, subtitle, children }: AppShellP
         <div className="preview-banner" role="status">
           <span className="preview-banner__dot" aria-hidden="true" />
           <span>
-            <strong>Ahmedabad showcase mode</strong> — all bins, routes, alerts, trucks, and payroll figures are local demo data; no internet or external API is required.
+            <strong>Ahmedabad showcase mode</strong> — your configured bin addresses and map pins stay in this browser; fill levels are manual and route/fleet actions are presentation-only.
           </span>
-          <Link href="/login">Switch view</Link>
+          <Link href="/setup">Configure bins</Link>
         </div>
 
         <main className="workspace-main">{children}</main>

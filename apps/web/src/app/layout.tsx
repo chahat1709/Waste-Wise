@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 export const metadata: Metadata = {

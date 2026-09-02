@@ -15,7 +15,7 @@ const roleDetails: Record<Role, { description: string; accent: string }> = {
     accent: "Field execution",
   },
   dispatcher: {
-    description: "Live bin alerts, routes and fleet operations",
+    description: "Bin conditions, route workflow and fleet operations",
     accent: "Control centre",
   },
   admin: {
@@ -83,7 +83,7 @@ export function LoginForm() {
           <BrandMark inverse />
           <div className="login-hero__copy">
             <span className="eyebrow-chip eyebrow-chip--light">
-              <Sparkles size={14} /> Ahmedabad showcase · local and reliable
+              <Sparkles size={14} /> Ahmedabad showcase · real-bin setup
             </span>
             <h1>
               Safer streets.
@@ -91,7 +91,7 @@ export function LoginForm() {
               Smarter collection.
             </h1>
             <p>
-              A stable, clickable Waste-Wise prototype for every route, safety signal, and verified shift.
+              A clickable Waste-Wise prototype for route, safety, and shift workflows using your configured bin locations.
             </p>
           </div>
           <div className="login-hero__proof">
@@ -100,7 +100,7 @@ export function LoginForm() {
             </div>
             <div>
               <strong>Built for accountable operations</strong>
-              <span>Role-aware access, verified telemetry, and traceable field actions.</span>
+              <span>Role-aware workspace patterns and traceable field-action workflows.</span>
             </div>
           </div>
         </div>
@@ -115,8 +115,9 @@ export function LoginForm() {
             <p>
               {configured
                 ? "Use your municipality or agency account to enter your assigned workspace."
-                : "Explore the Ahmedabad prototype with local sample data. No account, API key, or internet connection is needed."}
+                : "Add your real Ahmedabad dustbins in setup, then explore them across the three prototype workspaces. No account or Google API key is needed."}
             </p>
+            {!configured && <Link className="setup-shortcut" href="/setup">Configure your real bins first <ArrowRight size={14} /></Link>}
           </div>
 
           <form className="login-form" onSubmit={handleSubmit}>
@@ -191,7 +192,7 @@ export function LoginForm() {
           <div className="login-panel__footer">
             <span>
               <ShieldCheck size={15} />
-              {configured ? "Your access is protected by role-based controls." : "Showcase mode uses deterministic local sample data only."}
+              {configured ? "Your access is protected by role-based controls." : "Your configured bin locations are saved only in this browser."}
             </span>
             {configured ? <Link href="#reset">Forgot password?</Link> : <Link href="/">About this prototype</Link>}
           </div>

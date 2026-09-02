@@ -2,7 +2,7 @@
 
 This is the controlled-migration workspace for the Waste-Wise v2.0 unified responsive application. It intentionally lives alongside the legacy prototype while the production architecture is built out.
 
-> **Current priority: Ahmedabad showcase prototype.** The default no-environment mode is a polished, deterministic, fully local presentation demo. It requires no Google API key, Supabase project, hardware, or internet-backed route request. Use `../../docs/NBA_SHOWCASE_SCRIPT.md` for the walkthrough.
+> **Current priority: Ahmedabad showcase prototype.** Add up to 10 of your own real dustbin addresses at `/setup`; their coordinates and details are stored only in the browser. The prototype needs no Google API key, Supabase project, or hardware. OpenStreetMap tiles and the public Nominatim one-at-a-time address lookup need an internet connection while setting up/presenting the map. Use `../../docs/NBA_SHOWCASE_SCRIPT.md` for the walkthrough.
 
 ## Current foundation
 
@@ -12,7 +12,7 @@ This is the controlled-migration workspace for the Waste-Wise v2.0 unified respo
 - Typed API input contracts for collection proof, hazards, SOS, and telemetry.
 - A version-controlled Supabase tenant/RBAC/RLS baseline in `../../supabase`.
 
-The dashboard records are visibly marked local pilot data. They are not production telemetry, route plans, payroll, or persisted field actions.
+Your configured bin IDs, addresses, coordinates, fill levels, and capacity notes are real local showcase records. Route ordering, fleet, payroll, alert, and field-action behavior remain presentation-only until the production services are connected.
 
 ## Run locally
 
@@ -22,7 +22,7 @@ npm install
 npm run dev -- --hostname 0.0.0.0
 ```
 
-Open `http://localhost:3000` locally, or use the Arena live preview.
+Open `http://localhost:3000` locally, or use the Arena live preview. Visit `/setup` first to enter real dustbin IDs, names, addresses, fill levels, and optional capacity. Select **Locate** to geocode each address, check its pin, save, and then open `/dispatch`.
 
 ## Quality checks
 
