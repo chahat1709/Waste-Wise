@@ -1,5 +1,11 @@
 export const MAX_SHOWCASE_BINS = 10;
 
+export const SHOWCASE_ROUTE_LIFECYCLES = ["draft", "published", "in_progress", "completed"] as const;
+export type ShowcaseRouteLifecycle = (typeof SHOWCASE_ROUTE_LIFECYCLES)[number];
+
+export const SHOWCASE_STOP_STATUSES = ["pending", "collected", "inaccessible", "damaged"] as const;
+export type ShowcaseStopStatus = (typeof SHOWCASE_STOP_STATUSES)[number];
+
 export interface ShowcaseDepot {
   name: string;
   address: string;
@@ -17,12 +23,39 @@ export interface ShowcaseBin {
   capacityKg: number | null;
 }
 
+export interface ShowcaseRouteAssignment {
+  driverName: string;
+  vehicleLabel: string;
+}
+
+export interface ShowcaseStopRecord {
+  status: ShowcaseStopStatus;
+  recordedAt: string;
+  /** Collection proof is deliberately not claimed in the showcase. */
+  verification: "showcase_unverified";
+  note?: string;
+}
+
+export interface ShowcaseIncident {
+  id: string;
+  type: "road_hazard" | "sos";
+  note: string;
+  createdAt: string;
+  acknowledgedAt?: string;
+}
+
 export interface ShowcaseRoutePlan {
   id: string;
   orderedBinIds: string[];
   estimatedDistanceKm: number;
   generatedAt: string;
+  assignment: ShowcaseRouteAssignment;
+  lifecycle: ShowcaseRouteLifecycle;
+  stopRecords: Record<string, ShowcaseStopRecord>;
+  incidents: ShowcaseIncident[];
   publishedAt?: string;
+  startedAt?: string;
+  endedAt?: string;
 }
 
 export interface ShowcaseConfiguration {
@@ -56,6 +89,14 @@ export function blankShowcaseBin(index: number): ShowcaseBin {
   };
 }
 
+export function isShowcaseRouteLifecycle(value: unknown): value is ShowcaseRouteLifecycle {
+  return typeof value === "string" && SHOWCASE_ROUTE_LIFECYCLES.includes(value as ShowcaseRouteLifecycle);
+}
+
+export function isShowcaseStopStatus(value: unknown): value is ShowcaseStopStatus {
+  return typeof value === "string" && SHOWCASE_STOP_STATUSES.includes(value as ShowcaseStopStatus);
+}
+
 function hasValidCoordinates(latitude: number | null, longitude: number | null) {
   return Number.isFinite(latitude) && Number.isFinite(longitude)
     && latitude !== null && longitude !== null
@@ -71,14 +112,72 @@ export function isLocatedDepot(depot: ShowcaseDepot): depot is ShowcaseDepot & {
   return hasValidCoordinates(depot.latitude, depot.longitude);
 }
 
-export function orderedShowcaseBins(configuration: ShowcaseConfiguration) {
-  const byId = new Map(configuration.bins.map((bin) => [bin.id, bin]));
-  const routeOrder = configuration.routePlan?.orderedBinIds ?? configuration.bins.map((bin) => bin.id);
-  const ordered = routeOrder.map((id) => byId.get(id)).filter((bin): bin is ShowcaseBin => Boolean(bin));
-  const includedIds = new Set(ordered.map((bin) => bin.id));
+export function routeLifecycleLabel(lifecycle: ShowcaseRouteLifecycle | null) {
+  if (!lifecycle) return "Not planned";
+  return {
+    draft: "Draft route",
+    published: "Assigned · awaiting shift",
+    in_progress: "Shift in progress",
+    completed: "Shift completed",
+  }[lifecycle];
+}
 
-  // A partially stale local route must never hide one of the user's saved bins.
-  return [...ordered, ...configuration.bins.filter((bin) => !includedIds.has(bin.id))];
+export function isRouteLockedForSetup(plan: ShowcaseRoutePlan | null) {
+  return plan?.lifecycle === "published" || plan?.lifecycle === "in_progress" || plan?.lifecycle === "completed";
+}
+
+export function getShowcaseStopRecord(plan: ShowcaseRoutePlan | null, binId: string): ShowcaseStopRecord | null {
+  return plan?.stopRecords[binId] ?? null;
+}
+
+export function getShowcaseStopStatus(plan: ShowcaseRoutePlan | null, binId: string): ShowcaseStopStatus {
+  return getShowcaseStopRecord(plan, binId)?.status ?? "pending";
+}
+
+export function getShowcaseStopCounts(plan: ShowcaseRoutePlan | null) {
+  const counts: Record<ShowcaseStopStatus, number> = {
+    pending: 0,
+    collected: 0,
+    inaccessible: 0,
+    damaged: 0,
+  };
+  if (!plan) return counts;
+
+  plan.orderedBinIds.forEach((binId) => {
+    counts[getShowcaseStopStatus(plan, binId)] += 1;
+  });
+  return counts;
+}
+
+export function areAllShowcaseStopsResolved(plan: ShowcaseRoutePlan | null) {
+  return Boolean(plan && plan.orderedBinIds.length > 0 && getShowcaseStopCounts(plan).pending === 0);
+}
+
+/** Returns only bins included in the saved route plan, in its route order. */
+export function plannedShowcaseBins(configuration: ShowcaseConfiguration) {
+  const routePlan = configuration.routePlan;
+  if (!routePlan) return [];
+
+  const byId = new Map(configuration.bins.map((bin) => [bin.id, bin]));
+  const seenIds = new Set<string>();
+  return routePlan.orderedBinIds.flatMap((id) => {
+    if (seenIds.has(id)) return [];
+    seenIds.add(id);
+    const bin = byId.get(id);
+    return bin ? [bin] : [];
+  });
+}
+
+/**
+ * Shows route order when a plan exists, while preserving any locally saved bins
+ * that were absent from a stale imported route plan.
+ */
+export function orderedShowcaseBins(configuration: ShowcaseConfiguration) {
+  const plannedBins = plannedShowcaseBins(configuration);
+  if (!configuration.routePlan) return configuration.bins;
+
+  const includedIds = new Set(plannedBins.map((bin) => bin.id));
+  return [...plannedBins, ...configuration.bins.filter((bin) => !includedIds.has(bin.id))];
 }
 
 function distanceKm(
@@ -97,13 +196,20 @@ function distanceKm(
 
 /**
  * Deliberately simple client-side visit ordering for the showcase only.
- * It uses straight-line proximity and is not a road-aware or production CVRP solver.
+ * It visits manually marked high-fill bins first, then uses straight-line proximity; it is not a road-aware or production CVRP solver.
  */
 export function createLocalShowcaseRoute(configuration: ShowcaseConfiguration): ShowcaseRoutePlan | null {
-  const locatedBins = configuration.bins.filter(isLocatedBin);
-  if (locatedBins.length === 0) return null;
+  const hasIncompleteOrUnmappedBin = configuration.bins.some((bin) => (
+    !isLocatedBin(bin) || !bin.id.trim() || !bin.name.trim() || !bin.address.trim()
+  ));
+  // Duplicate IDs make stop outcomes ambiguous, so setup must resolve them before planning.
+  if (
+    configuration.bins.length === 0
+    || hasIncompleteOrUnmappedBin
+    || new Set(configuration.bins.map((bin) => bin.id)).size !== configuration.bins.length
+  ) return null;
 
-  const remaining = [...locatedBins];
+  const remaining = [...configuration.bins.filter(isLocatedBin)];
   const ordered: ShowcaseBin[] = [];
   let totalDistanceKm = 0;
   let current = isLocatedDepot(configuration.depot)
@@ -113,8 +219,12 @@ export function createLocalShowcaseRoute(configuration: ShowcaseConfiguration): 
   while (remaining.length > 0) {
     let selectedIndex = 0;
     let selectedDistance = Number.POSITIVE_INFINITY;
+    const hasPriorityBin = remaining.some((bin) => bin.fillPercent >= 85);
 
     remaining.forEach((bin, index) => {
+      // For the showcase, manually marked high-fill bins are visited before normal bins.
+      // Within that group, the order is still simple straight-line nearest neighbour.
+      if (hasPriorityBin && bin.fillPercent < 85) return;
       const candidateDistance = distanceKm(current, bin);
       if (candidateDistance < selectedDistance) {
         selectedDistance = candidateDistance;
@@ -137,5 +247,9 @@ export function createLocalShowcaseRoute(configuration: ShowcaseConfiguration): 
     orderedBinIds: ordered.map((bin) => bin.id),
     estimatedDistanceKm: Number(totalDistanceKm.toFixed(1)),
     generatedAt: new Date().toISOString(),
+    assignment: { driverName: "", vehicleLabel: "" },
+    lifecycle: "draft",
+    stopRecords: {},
+    incidents: [],
   };
 }

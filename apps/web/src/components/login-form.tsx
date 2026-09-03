@@ -15,11 +15,11 @@ const roleDetails: Record<Role, { description: string; accent: string }> = {
     accent: "Field execution",
   },
   dispatcher: {
-    description: "Bin conditions, route workflow and fleet operations",
+    description: "Map validation, route assignment, and local safety review",
     accent: "Control centre",
   },
   admin: {
-    description: "People, vehicles, payroll and reporting",
+    description: "Route record review, CSV export, and admin readiness",
     accent: "Administration",
   },
 };
@@ -110,7 +110,7 @@ export function LoginForm() {
       <section className="login-panel-wrap">
         <div className="login-panel">
           <div className="login-panel__heading">
-            <span className="eyebrow-chip">Secure sign in</span>
+            <span className="eyebrow-chip">{configured ? "Secure sign in" : "Showcase role preview"}</span>
             <h2>Choose a showcase workspace</h2>
             <p>
               {configured
@@ -142,44 +142,50 @@ export function LoginForm() {
               </div>
             </fieldset>
 
-            <label className="field-label" htmlFor="email">
-              Work email
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                placeholder="you@municipality.gov"
-                onChange={(event) => setEmail(event.target.value)}
-                disabled={!configured}
-              />
-            </label>
+            {configured ? (
+              <>
+                <label className="field-label" htmlFor="email">
+                  Work email
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    placeholder="you@municipality.gov"
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </label>
 
-            <label className="field-label" htmlFor="password">
-              Password
-              <span className="password-field">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  value={password}
-                  placeholder="Enter your password"
-                  onChange={(event) => setPassword(event.target.value)}
-                  disabled={!configured}
-                />
-                <button
-                  type="button"
-                  className="password-field__toggle"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword((current) => !current)}
-                  disabled={!configured}
-                >
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                </button>
-              </span>
-            </label>
+                <label className="field-label" htmlFor="password">
+                  Password
+                  <span className="password-field">
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      value={password}
+                      placeholder="Enter your password"
+                      onChange={(event) => setPassword(event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="password-field__toggle"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      onClick={() => setShowPassword((current) => !current)}
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </span>
+                </label>
+              </>
+            ) : (
+              <div className="showcase-login-note">
+                <ShieldCheck size={17} />
+                <span><strong>No account is used in showcase mode.</strong> Choose a role preview to follow the workflow. Real bin records remain only in this browser.</span>
+              </div>
+            )}
 
             {message && <p className="form-message" role="alert">{message}</p>}
 

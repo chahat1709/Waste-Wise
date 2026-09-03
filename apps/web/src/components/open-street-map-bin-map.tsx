@@ -14,7 +14,7 @@ import {
 import {
   isLocatedBin,
   isLocatedDepot,
-  orderedShowcaseBins,
+  plannedShowcaseBins,
   type ShowcaseConfiguration,
 } from "@/lib/showcase/bins";
 
@@ -54,7 +54,7 @@ function binColor(fillPercent: number) {
 export function OpenStreetMapBinMap({ configuration, compact = false, className = "" }: OpenStreetMapBinMapProps) {
   const locatedBins = useMemo(() => configuration.bins.filter(isLocatedBin), [configuration.bins]);
   const orderedBins = useMemo(
-    () => orderedShowcaseBins(configuration).filter(isLocatedBin),
+    () => plannedShowcaseBins(configuration).filter(isLocatedBin),
     [configuration],
   );
 
@@ -115,7 +115,7 @@ export function OpenStreetMapBinMap({ configuration, compact = false, className 
               <Tooltip direction="top" offset={[0, -9]}>
                 <strong>{routeIndex >= 0 ? `${routeIndex + 1}. ` : ""}{bin.name || bin.id}</strong><br />
                 {bin.address}<br />
-                {bin.fillPercent}% full · {bin.capacityKg ? `${bin.capacityKg} kg` : "capacity not set"}
+                {bin.fillPercent}% full · {bin.capacityKg ? `${bin.capacityKg} kg bin capacity note` : "bin capacity not set"}
               </Tooltip>
             </CircleMarker>
           );

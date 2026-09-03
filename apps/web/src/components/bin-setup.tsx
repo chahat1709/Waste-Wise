@@ -23,7 +23,9 @@ import { AppShell } from "@/components/app-shell";
 import {
   blankShowcaseBin,
   isLocatedBin,
+  isRouteLockedForSetup,
   MAX_SHOWCASE_BINS,
+  routeLifecycleLabel,
   type ShowcaseBin,
   type ShowcaseConfiguration,
   type ShowcaseDepot,
@@ -117,6 +119,13 @@ export function BinSetup() {
   const [message, setMessage] = useState("Add your real Ahmedabad bin addresses, then locate and save them.");
 
   const locatedCount = configuration.bins.filter(isLocatedBin).length;
+  const routeLocked = isRouteLockedForSetup(configuration.routePlan);
+  const routeManagementHref = configuration.routePlan?.lifecycle === "completed" ? "/admin" : "/dispatch";
+  const routeManagementLabel = configuration.routePlan?.lifecycle === "completed" ? "review and reset the completed demo" : "unpublish the route";
+
+  function describeRouteLock() {
+    setMessage(`This setup is locked while ${routeLifecycleLabel(configuration.routePlan?.lifecycle ?? null).toLowerCase()}. Open the relevant workspace to ${routeManagementLabel} before editing bins.`);
+  }
 
   function completeBins() {
     return configuration.bins.filter((bin) => bin.id.trim() && bin.name.trim() && bin.address.trim());
@@ -137,10 +146,18 @@ export function BinSetup() {
   }
 
   function updateDepot(patch: Partial<ShowcaseDepot>) {
+    if (routeLocked) {
+      describeRouteLock();
+      return;
+    }
     updateConfiguration((current) => invalidateRoute({ ...current, depot: { ...current.depot, ...patch } }));
   }
 
   function updateBin(id: string, patch: Partial<ShowcaseBin>) {
+    if (routeLocked) {
+      describeRouteLock();
+      return;
+    }
     updateConfiguration((current) => invalidateRoute({
       ...current,
       bins: current.bins.map((bin) => (bin.id === id ? { ...bin, ...patch } : bin)),
@@ -148,6 +165,10 @@ export function BinSetup() {
   }
 
   function addBin() {
+    if (routeLocked) {
+      describeRouteLock();
+      return;
+    }
     if (configuration.bins.length >= MAX_SHOWCASE_BINS) {
       setMessage(`This showcase supports up to ${MAX_SHOWCASE_BINS} bins.`);
       return;
@@ -159,6 +180,10 @@ export function BinSetup() {
   }
 
   function removeBin(id: string) {
+    if (routeLocked) {
+      describeRouteLock();
+      return;
+    }
     updateConfiguration((current) => invalidateRoute({
       ...current,
       bins: current.bins.filter((bin) => bin.id !== id),
@@ -197,6 +222,10 @@ export function BinSetup() {
   }
 
   async function locateBin(bin: ShowcaseBin) {
+    if (routeLocked) {
+      describeRouteLock();
+      return;
+    }
     if (!bin.address.trim()) {
       setMessage(`Add an address for ${bin.id} before locating it.`);
       return;
@@ -219,6 +248,10 @@ export function BinSetup() {
   }
 
   async function locateAllBins() {
+    if (routeLocked) {
+      describeRouteLock();
+      return;
+    }
     const pendingBins = configuration.bins.filter((bin) => bin.address.trim() && !isLocatedBin(bin));
     if (pendingBins.length === 0) {
       setMessage("Every entered address is already located, or needs an address.");
@@ -247,6 +280,10 @@ export function BinSetup() {
 
   function saveBins(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (routeLocked) {
+      describeRouteLock();
+      return;
+    }
     const usableBins = completeBins();
     if (usableBins.length === 0) {
       setMessage("Add at least one bin ID, name, and address before saving.");
@@ -272,6 +309,10 @@ export function BinSetup() {
   }
 
   function resetSetup() {
+    if (routeLocked) {
+      describeRouteLock();
+      return;
+    }
     if (!window.confirm("Remove all locally saved bin locations and route plans from this browser?")) return;
     clearShowcaseConfiguration();
     setMessage("Local bin setup was cleared. No remote data was changed.");
@@ -295,7 +336,7 @@ export function BinSetup() {
       </section>
 
       <section className="setup-workspace">
-        <form className="setup-form panel" onSubmit={saveBins}>
+        <form className="setup-form panel" id="bin-setup" onSubmit={saveBins}>
           <div className="panel-heading">
             <div>
               <span className="section-kicker">Optional · route starting point</span>
@@ -304,6 +345,13 @@ export function BinSetup() {
             <span className="setup-progress">{locatedCount} / {configuration.bins.length} bins located</span>
           </div>
           <div className="setup-form__body">
+            {routeLocked && (
+              <div className="setup-route-lock" role="status">
+                <AlertCircle size={16} />
+                <span><strong>{routeLifecycleLabel(configuration.routePlan?.lifecycle ?? null)}.</strong> Bin details cannot change while this route is retained. <Link href={routeManagementHref}>{configuration.routePlan?.lifecycle === "completed" ? "Review it in HR / Admin" : "Manage it in Dispatch"}</Link>.</span>
+              </div>
+            )}
+            <fieldset className="setup-editable-fields" disabled={routeLocked}>
             <div className="setup-field-grid setup-field-grid--depot">
               <label className="field-label">Depot name (optional)
                 <input value={configuration.depot.name} onChange={(event) => updateDepot({ name: event.target.value })} placeholder="Your collection depot" />
@@ -371,7 +419,7 @@ export function BinSetup() {
                       <label className="field-label">Current fill level
                         <span className="number-suffix"><input type="number" min="0" max="100" value={bin.fillPercent} onChange={(event) => updateBin(bin.id, { fillPercent: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })} /><b>%</b></span>
                       </label>
-                      <label className="field-label">Capacity <small>optional</small>
+                      <label className="field-label">Bin capacity <small>display note only</small>
                         <span className="number-suffix"><input type="number" min="0" step="any" value={bin.capacityKg ?? ""} onChange={(event) => updateBin(bin.id, { capacityKg: inputNumber(event.target.value) })} placeholder="120" /><b>kg</b></span>
                       </label>
                     </div>
@@ -379,27 +427,33 @@ export function BinSetup() {
                 ))}
               </div>
             )}
+            </fieldset>
 
+            <p className="setup-autosave-note">Changes are stored in this browser as you edit. <strong>Save real bins</strong> checks your records before you move to Dispatch.</p>
             <p className="setup-message" role="status"><AlertCircle size={15} /> {message}</p>
             <div className="setup-form__footer">
               <button className="text-button" type="button" onClick={resetSetup}><Trash2 size={15} /> Clear local setup</button>
               <div>
                 <button className="quiet-button" type="button" onClick={downloadBackup} disabled={configuration.bins.length === 0}><Download size={16} /> Download backup</button>
-                <button className="primary-button" type="submit"><Save size={16} /> Save real bins</button>
-                <button className="primary-button" type="button" onClick={() => {
-                  const usableBins = completeBins();
-                  if (usableBins.length === 0) { setMessage("Add at least one complete bin before opening the map."); return; }
-                  if (hasDuplicateBinIds(usableBins)) { setMessage("Each bin needs a unique ID before you open the map."); return; }
-                  updateConfiguration((current) => ({ ...current, bins: usableBins, routePlan: null }));
-                  router.push("/dispatch");
-                }}><ArrowRight size={16} /> Save & open map</button>
+                <button className="primary-button" type="submit" disabled={routeLocked}><Save size={16} /> Save real bins</button>
+                {routeLocked ? (
+                  <Link className="primary-button" href={routeManagementHref}><Navigation size={16} /> {configuration.routePlan?.lifecycle === "completed" ? "Review completed route" : "Manage route"}</Link>
+                ) : (
+                  <button className="primary-button" type="button" onClick={() => {
+                    const usableBins = completeBins();
+                    if (usableBins.length === 0) { setMessage("Add at least one complete bin before opening the map."); return; }
+                    if (hasDuplicateBinIds(usableBins)) { setMessage("Each bin needs a unique ID before you open the map."); return; }
+                    updateConfiguration((current) => ({ ...current, bins: usableBins, routePlan: null }));
+                    router.push("/dispatch");
+                  }}><ArrowRight size={16} /> Save & open map</button>
+                )}
               </div>
             </div>
           </div>
         </form>
 
         <aside className="setup-map-column">
-          <article className="setup-map-card panel">
+          <article className="setup-map-card panel" id="map-preview">
             <div className="panel-heading panel-heading--compact">
               <div><span className="section-kicker">Step 3 · verify map pins</span><h2>Ahmedabad bin map</h2></div>
               <span className="setup-map-card__count"><Check size={14} /> {locatedCount} located</span>

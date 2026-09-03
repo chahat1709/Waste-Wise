@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, FormEvent } from "react";
 
 import {
   AlertTriangle,
@@ -14,7 +14,7 @@ import {
   CircleAlert,
   Clock3,
   Crosshair,
-  Fuel,
+  Database,
   Gauge,
   LocateFixed,
   MapPinned,
@@ -28,8 +28,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   Siren,
-  Sparkles,
   Timer,
+  Truck,
   UsersRound,
   Wifi,
   WifiOff,
@@ -37,16 +37,25 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { shiftRows } from "@/lib/demo-data";
-import type { RouteStopStatus } from "@/lib/domain";
 import { enqueueOfflineCommand, type OfflineCommandType } from "@/lib/offline/outbox";
 import {
+  areAllShowcaseStopsResolved,
   createLocalShowcaseRoute,
+  getShowcaseStopCounts,
+  getShowcaseStopRecord,
+  getShowcaseStopStatus,
   isLocatedBin,
   MAX_SHOWCASE_BINS,
   orderedShowcaseBins,
+  plannedShowcaseBins,
+  routeLifecycleLabel,
+  type ShowcaseIncident,
+  type ShowcaseRoutePlan,
+  type ShowcaseStopStatus,
 } from "@/lib/showcase/bins";
 import { useShowcaseConfiguration } from "@/lib/showcase/storage";
+
+type ShowcaseExceptionStatus = Extract<ShowcaseStopStatus, "inaccessible" | "damaged">;
 
 const OpenStreetMapBinMap = dynamic(
   () => import("@/components/open-street-map-bin-map").then((module) => module.OpenStreetMapBinMap),
@@ -83,11 +92,11 @@ function MetricCard({
   );
 }
 
-function StopStatus({ status }: { status: RouteStopStatus }) {
-  const labels: Record<RouteStopStatus, string> = {
+function StopStatus({ status }: { status: ShowcaseStopStatus }) {
+  const labels: Record<ShowcaseStopStatus, string> = {
     pending: "Pending",
     collected: "Collected",
-    inaccessible: "Skipped",
+    inaccessible: "Inaccessible",
     damaged: "Damaged",
   };
 
@@ -99,16 +108,8 @@ function CompletionRing({ percent }: { percent: number }) {
     <div className="completion-ring" style={{ "--completion": `${percent * 3.6}deg` } as CSSProperties}>
       <div>
         <strong>{percent}%</strong>
-        <span>complete</span>
+        <span>resolved</span>
       </div>
-    </div>
-  );
-}
-
-function RouteProgress({ progress }: { progress: number }) {
-  return (
-    <div className="progress-track" aria-label={`${progress}% complete`}>
-      <span style={{ width: `${progress}%` }} />
     </div>
   );
 }
@@ -120,27 +121,66 @@ function createOfflineCommandId() {
   return globalThis.crypto.randomUUID();
 }
 
+function formatTimestamp(value?: string) {
+  if (!value) return "Not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not recorded";
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatShiftDuration(startedAt?: string, endedAt?: string) {
+  if (!startedAt || !endedAt) return "—";
+  const elapsedMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return "—";
+  const totalMinutes = Math.round(elapsedMs / 60_000);
+  return `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, "0")}m`;
+}
+
+function RouteStateChip({ routePlan }: { routePlan: ShowcaseRoutePlan | null }) {
+  const lifecycle = routePlan?.lifecycle ?? null;
+  return <span className={`route-state-chip route-state-chip--${lifecycle ?? "none"}`}>{routeLifecycleLabel(lifecycle)}</span>;
+}
+
+function csvValue(value: string | number) {
+  return `"${String(value).replaceAll('"', '""')}"`;
+}
+
 export function DriverWorkspace() {
-  const { configuration } = useShowcaseConfiguration();
-  const [onShift, setOnShift] = useState(false);
-  const [stopStatuses, setStopStatuses] = useState<Record<string, RouteStopStatus>>({});
-  const [lastMessage, setLastMessage] = useState("Your shift is not active. Location sharing remains paused.");
-  const [sosRaised, setSosRaised] = useState(false);
+  const { configuration, updateConfiguration } = useShowcaseConfiguration();
+  const [lastMessage, setLastMessage] = useState("Wait for Dispatch to assign and publish a route before starting your shift.");
+  const [exceptionDraft, setExceptionDraft] = useState<{ stopId: string; status: ShowcaseExceptionStatus; note: string } | null>(null);
+  const [isHazardFormOpen, setIsHazardFormOpen] = useState(false);
+  const [hazardNote, setHazardNote] = useState("");
   const [isOnline, setIsOnline] = useState(true);
 
-  const orderedBins = useMemo(() => orderedShowcaseBins(configuration), [configuration]);
+  const routePlan = configuration.routePlan;
+  const routeBins = useMemo(() => plannedShowcaseBins(configuration), [configuration]);
   const stops = useMemo(
-    () => orderedBins.map((bin, index) => ({
+    () => routeBins.map((bin, index) => ({
       id: bin.id,
       sequence: index + 1,
       name: bin.name || bin.id,
       address: bin.address,
       fillPercent: bin.fillPercent,
       capacityKg: bin.capacityKg,
-      status: stopStatuses[bin.id] ?? "pending",
+      status: getShowcaseStopStatus(routePlan, bin.id),
+      record: getShowcaseStopRecord(routePlan, bin.id),
     })),
-    [orderedBins, stopStatuses],
+    [routeBins, routePlan],
   );
+  const stopCounts = getShowcaseStopCounts(routePlan);
+  const resolvedStops = stopCounts.collected + stopCounts.inaccessible + stopCounts.damaged;
+  const progress = Math.round((resolvedStops / Math.max(stops.length, 1)) * 100);
+  const nextStop = stops.find((stop) => stop.status === "pending");
+  const isShiftActive = routePlan?.lifecycle === "in_progress";
+  const isShiftComplete = routePlan?.lifecycle === "completed";
+  const hasRaisedSos = Boolean(routePlan?.incidents.some((incident) => incident.type === "sos" && !incident.acknowledgedAt));
+  const assignmentReady = Boolean(routePlan?.assignment.driverName.trim() && routePlan?.assignment.vehicleLabel.trim());
 
   useEffect(() => {
     const updateConnectivity = () => setIsOnline(navigator.onLine);
@@ -166,77 +206,226 @@ export function DriverWorkspace() {
     }
   }
 
-  const completedStops = stops.filter((stop) => stop.status === "collected").length;
-  const progress = Math.round((completedStops / Math.max(stops.length, 1)) * 100);
-  const nextStop = stops.find((stop) => stop.status === "pending") ?? stops[stops.length - 1];
+  function startShift() {
+    if (!routePlan || routePlan.lifecycle !== "published" || !assignmentReady) {
+      setLastMessage("Dispatch must assign a driver and vehicle, then publish the route before a shift can start.");
+      return;
+    }
 
-  function toggleShift() {
-    const nextState = !onShift;
-    setOnShift(nextState);
-    setSosRaised(false);
-    setLastMessage(
-      nextState
-        ? "Shift preview started. The location-sharing indicator is active, but no live GPS is transmitted in this prototype."
-        : "Shift preview ended. The location-sharing indicator is paused and your route is locked.",
-    );
+    const startedAt = new Date().toISOString();
+    updateConfiguration((current) => {
+      const currentPlan = current.routePlan;
+      if (!currentPlan || currentPlan.lifecycle !== "published") return current;
+      return {
+        ...current,
+        routePlan: { ...currentPlan, lifecycle: "in_progress", startedAt, endedAt: undefined },
+      };
+    });
+    setLastMessage("Shift started in the local showcase. Stop outcomes are manual/unverified here; production will enforce the 50 m GPS rule.");
   }
 
-  async function updateStop(stopId: string, status: RouteStopStatus) {
-    if (!onShift) {
-      setLastMessage("Start your shift before recording a collection result.");
+  function endShift() {
+    if (!routePlan || routePlan.lifecycle !== "in_progress") return;
+    if (!areAllShowcaseStopsResolved(routePlan)) {
+      setLastMessage(`${stopCounts.pending} stop${stopCounts.pending === 1 ? " is" : "s are"} still pending. Record Collected, Inaccessible, or Damaged for every stop before ending the shift.`);
+      return;
+    }
+
+    const endedAt = new Date().toISOString();
+    updateConfiguration((current) => {
+      const currentPlan = current.routePlan;
+      if (!currentPlan || currentPlan.lifecycle !== "in_progress") return current;
+      return { ...current, routePlan: { ...currentPlan, lifecycle: "completed", endedAt } };
+    });
+    setLastMessage("Shift completed locally. HR / Admin can now review the route record and download its showcase CSV.");
+  }
+
+  async function updateStop(stopId: string, status: Exclude<ShowcaseStopStatus, "pending">, exceptionNote?: string) {
+    if (!routePlan || routePlan.lifecycle !== "in_progress") {
+      setLastMessage("Start the assigned shift before recording a stop outcome.");
       return;
     }
 
     const stop = stops.find((item) => item.id === stopId);
-    setStopStatuses((current) => ({ ...current, [stopId]: status }));
-    const statusCopy: Record<RouteStopStatus, string> = {
-      pending: "reset to pending",
-      collected: "marked collected in this local showcase",
-      inaccessible: "marked inaccessible in this local showcase",
-      damaged: "marked damaged in this local showcase",
-    };
-    const queued = await queueWhenOffline(
-      status === "collected" ? "collection.record" : "route-stop.skip",
-      { routeStopReference: stopId, outcome: status },
-    );
-    setLastMessage(
-      queued
-        ? `${stop?.name ?? "Stop"} was queued securely in this device's offline outbox.`
-        : `${stop?.name ?? "Stop"} was ${statusCopy[status]}. Preview changes are stored locally only.`,
-    );
-  }
-
-  async function raiseSos() {
-    if (!onShift) {
-      setLastMessage("SOS becomes available when an active shift begins.");
+    const note = exceptionNote?.trim();
+    if ((status === "inaccessible" || status === "damaged") && !note) {
+      setLastMessage(`Add a reason before marking ${stop?.name ?? "this stop"} ${status}.`);
       return;
     }
-    setSosRaised(true);
-    const queued = await queueWhenOffline("sos.raise", { routeReference: "R-AMD-091" });
+
+    const recordedAt = new Date().toISOString();
+    updateConfiguration((current) => {
+      const currentPlan = current.routePlan;
+      if (!currentPlan || currentPlan.lifecycle !== "in_progress") return current;
+      return {
+        ...current,
+        routePlan: {
+          ...currentPlan,
+          stopRecords: {
+            ...currentPlan.stopRecords,
+            [stopId]: { status, recordedAt, verification: "showcase_unverified", note },
+          },
+        },
+      };
+    });
+    setExceptionDraft(null);
+
+    const queued = await queueWhenOffline(
+      status === "collected" ? "collection.record" : "route-stop.skip",
+      { routeStopReference: stopId, outcome: status, note: note ?? null },
+    );
+    const copy: Record<Exclude<ShowcaseStopStatus, "pending">, string> = {
+      collected: "marked Collected",
+      inaccessible: "marked Inaccessible",
+      damaged: "marked Damaged",
+    };
     setLastMessage(
       queued
-        ? "SOS preview was queued in the offline outbox. Reconnect immediately so dispatch can receive it."
-        : "SOS preview raised. Production will transmit your active route, latest location, accuracy, and timestamp to dispatch.",
+        ? `${stop?.name ?? "Stop"} was queued in this device's offline outbox.`
+        : `${stop?.name ?? "Stop"} was ${copy[status]}. The local showcase record is visible to Dispatch.`,
     );
   }
 
-  async function reportRoadHazard() {
-    const queued = await queueWhenOffline("hazard.report", { kind: "unsafe_access", routeReference: "R-AMD-091" });
+  async function addIncident(type: ShowcaseIncident["type"], note: string) {
+    if (!routePlan || routePlan.lifecycle !== "in_progress") {
+      setLastMessage("Start the assigned shift before reporting a road hazard or raising SOS.");
+      return;
+    }
+
+    const normalizedNote = note.trim();
+    if (!normalizedNote) {
+      setLastMessage("Add a short road-hazard description before reporting it to Dispatch.");
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const id = createOfflineCommandId();
+    updateConfiguration((current) => {
+      const currentPlan = current.routePlan;
+      if (!currentPlan || currentPlan.lifecycle !== "in_progress") return current;
+      return {
+        ...current,
+        routePlan: {
+          ...currentPlan,
+          incidents: [...currentPlan.incidents, { id, type, note: normalizedNote, createdAt }],
+        },
+      };
+    });
+
+    const queued = await queueWhenOffline(
+      type === "sos" ? "sos.raise" : "hazard.report",
+      { routeReference: routePlan.id, note: normalizedNote },
+    );
     setLastMessage(
       queued
-        ? "Road-hazard report was queued in the offline outbox for safe replay."
-        : "Road-hazard report preview opened. The live map workflow will attach location and create an avoid-area review.",
+        ? `${type === "sos" ? "SOS" : "Road-hazard report"} was queued in the offline outbox.`
+        : `${type === "sos" ? "SOS" : "Road-hazard report"} is now visible in the local Dispatch safety centre. No real notification was sent.`,
     );
   }
 
-  if (!nextStop) {
+  function raiseSos() {
+    if (hasRaisedSos) {
+      setLastMessage("An SOS is already awaiting acknowledgement in Dispatch.");
+      return;
+    }
+    void addIncident("sos", "SOS raised from the Driver showcase");
+  }
+
+  function reportRoadHazard() {
+    if (!routePlan || routePlan.lifecycle !== "in_progress") {
+      setLastMessage("Start the assigned shift before reporting a road hazard.");
+      return;
+    }
+    setIsHazardFormOpen(true);
+    setLastMessage("Describe the road hazard so Dispatch can review the local record.");
+  }
+
+  function submitRoadHazard(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const note = hazardNote.trim();
+    if (!note) {
+      setLastMessage("A short road-hazard description is required.");
+      return;
+    }
+    setIsHazardFormOpen(false);
+    setHazardNote("");
+    void addIncident("road_hazard", note);
+  }
+
+  if (configuration.bins.length === 0) {
     return (
-      <AppShell role="driver" eyebrow="Real bins not configured" title="Your route is ready for setup" subtitle="Add your dustbin addresses first, then return here to demonstrate the driver experience.">
+      <AppShell role="driver" eyebrow="Step 1 of 4 · real bins not configured" title="No route can be assigned yet" subtitle="Add and locate your dustbin addresses before Dispatch can build a driver route.">
         <section className="workspace-empty-state">
           <span className="workspace-empty-state__icon"><MapPinned size={24} /></span>
-          <h2>Add your real Ahmedabad dustbins</h2>
-          <p>Configure up to 10 bin addresses, locate them on OpenStreetMap, and the route will appear here in the saved order.</p>
+          <h2>Configure real Ahmedabad dustbins</h2>
+          <p>Set up up to 10 real bin addresses, verify their map pins, then move to Dispatch to create a route.</p>
           <Link className="primary-button" href="/setup">Configure real bins <ChevronRight size={17} /></Link>
+        </section>
+      </AppShell>
+    );
+  }
+
+  if (!routePlan) {
+    return (
+      <AppShell role="driver" eyebrow="Step 2 of 4 · waiting for Dispatch" title="Route planning has not started" subtitle="Your configured bins are ready, but a dispatcher still needs to build and assign the route.">
+        <section className="route-gate-card">
+          <span className="route-gate-card__icon"><Route size={25} /></span>
+          <div>
+            <span className="section-kicker">Dispatcher action required</span>
+            <h2>Build the collection route first</h2>
+            <p>Drivers do not receive the raw bin list. Dispatch must create a local route order, enter a driver and vehicle showcase label, and publish it before this view unlocks.</p>
+          </div>
+          <Link className="primary-button" href="/dispatch">Open Dispatch <ChevronRight size={17} /></Link>
+        </section>
+      </AppShell>
+    );
+  }
+
+  if (routePlan.lifecycle === "draft" || !assignmentReady) {
+    return (
+      <AppShell role="driver" eyebrow="Step 3 of 4 · route awaiting assignment" title="Dispatch has a route draft" subtitle="The stop list remains unavailable until Dispatch assigns a driver and vehicle label, then publishes the route.">
+        <section className="route-gate-card">
+          <span className="route-gate-card__icon"><UsersRound size={25} /></span>
+          <div>
+            <span className="section-kicker">Route draft · {routePlan.orderedBinIds.length} planned stops</span>
+            <h2>Awaiting driver and vehicle hand-off</h2>
+            <p>This protects the route sequence from being treated as an active driver assignment before Dispatch approves it.</p>
+          </div>
+          <Link className="primary-button" href="/dispatch">Assign in Dispatch <ChevronRight size={17} /></Link>
+        </section>
+      </AppShell>
+    );
+  }
+
+  if (routeBins.length === 0) {
+    return (
+      <AppShell role="driver" eyebrow="Route needs review" title="No valid stops are available" subtitle="The saved route no longer matches your configured bins.">
+        <section className="workspace-empty-state">
+          <span className="workspace-empty-state__icon"><AlertTriangle size={24} /></span>
+          <h2>Return the route to Dispatch</h2>
+          <p>Review the bin setup and rebuild the route before a driver starts the shift.</p>
+          <Link className="primary-button" href="/dispatch">Review route <ChevronRight size={17} /></Link>
+        </section>
+      </AppShell>
+    );
+  }
+
+  if (routePlan.lifecycle === "published") {
+    return (
+      <AppShell
+        role="driver"
+        eyebrow="Step 4 of 4 · route assigned"
+        title="Start shift to unlock your stops"
+        subtitle="Your dispatcher-approved route is assigned locally. Individual stop addresses stay hidden until the shift starts."
+      >
+        <section className="route-gate-card route-gate-card--assigned">
+          <span className="route-gate-card__icon"><Play size={25} fill="currentColor" /></span>
+          <div>
+            <span className="section-kicker">Assigned route · {routePlan.id}</span>
+            <h2>{routePlan.orderedBinIds.length} stops for {routePlan.assignment.driverName}</h2>
+            <p>Vehicle: <strong>{routePlan.assignment.vehicleLabel}</strong>. Starting the showcase shift records a local time and unlocks the stop sequence. Live GPS, 50 m proof, and notifications are not connected.</p>
+          </div>
+          <button className="primary-button" type="button" onClick={startShift}><Play size={17} fill="currentColor" /> Start shift</button>
         </section>
       </AppShell>
     );
@@ -245,60 +434,80 @@ export function DriverWorkspace() {
   return (
     <AppShell
       role="driver"
-      eyebrow={onShift ? "Shift preview active · GPS indicator on" : "Real bin route · GPS indicator paused"}
-      title={onShift ? `Route ${configuration.routePlan?.id ?? "R-AMD-DEMO-01"}` : "Your Ahmedabad route"}
-      subtitle={onShift ? `${stops.length} real bin stop${stops.length === 1 ? "" : "s"} · local showcase route` : "Start your shift to demonstrate service verification on your real bin locations."}
+      eyebrow={isShiftComplete ? "Route completed · local record ready" : "Shift active · local execution record"}
+      title={isShiftComplete ? `Completed route ${routePlan.id}` : `Route ${routePlan.id}`}
+      subtitle={isShiftComplete
+        ? `${stopCounts.collected} collected · ${stopCounts.inaccessible + stopCounts.damaged} exception${stopCounts.inaccessible + stopCounts.damaged === 1 ? "" : "s"} · review in HR / Admin.`
+        : `${stops.length} assigned stop${stops.length === 1 ? "" : "s"} · manual showcase outcomes are visible to Dispatch.`}
     >
       <section className="driver-hero-grid">
-        <article className={`shift-card ${onShift ? "shift-card--active" : ""}`}>
+        <article className={`shift-card ${isShiftActive ? "shift-card--active" : ""}`}>
           <div className="shift-card__topline">
             <div>
-              <span className="section-kicker">Today&apos;s shift</span>
-              <h2>{onShift ? "You are on duty" : "Ready when you are"}</h2>
+              <span className="section-kicker">Assigned showcase shift</span>
+              <h2>{isShiftComplete ? "Route record complete" : "You are on duty"}</h2>
             </div>
-            <span className={`live-status ${onShift ? "live-status--active" : ""}`}>
-              <i aria-hidden="true" /> {onShift ? "Preview" : "Standby"}
-            </span>
+            <RouteStateChip routePlan={routePlan} />
           </div>
           <p>
-            {onShift
-              ? "Your location is shared only during this active shift. Keep the app open while driving between stops."
-              : "Starting a shift records your clock-in time and turns on route location sharing."}
+            {isShiftActive
+              ? "Stop outcomes are saved locally and shared with the Dispatcher view. GPS validation is deliberately not claimed in this prototype."
+              : "All route stops have an outcome. Open HR / Admin to review the local execution record and download its CSV."}
           </p>
           <div className="shift-card__actions">
-            <button className="primary-button" type="button" onClick={toggleShift}>
-              {onShift ? <Pause size={17} /> : <Play size={17} fill="currentColor" />}
-              {onShift ? "End shift" : "Start shift"}
-            </button>
-            <button className="quiet-button" type="button" onClick={() => setLastMessage("Route refresh requested. Live API connection is the next foundation milestone.") }>
-              <RefreshCw size={16} /> Refresh route
+            {isShiftActive ? (
+              <button className="primary-button" type="button" onClick={endShift}>
+                <Pause size={17} /> End shift
+              </button>
+            ) : (
+              <Link className="primary-button" href="/admin"><ArrowDownToLine size={17} /> Review in HR / Admin</Link>
+            )}
+            <button className="quiet-button" type="button" onClick={() => setLastMessage("Route refresh is intentionally disabled during execution so the dispatcher hand-off remains stable.") }>
+              <RefreshCw size={16} /> Route locked
             </button>
             <span className={`connectivity-chip ${isOnline ? "connectivity-chip--online" : "connectivity-chip--offline"}`}>
               {isOnline ? <Wifi size={15} /> : <WifiOff size={15} />}
-              {isOnline ? "Ready to sync" : "Offline outbox on"}
+              {isOnline ? "Local record ready" : "Offline outbox on"}
             </span>
           </div>
           <p className="interaction-message" role="status">{lastMessage}</p>
         </article>
 
-        <article className="next-stop-card">
-          <div className="next-stop-card__head">
-            <span className="section-kicker">Next real bin stop</span>
-            <span className="eta-chip"><Timer size={14} /> Stop {nextStop.sequence} of {stops.length}</span>
-          </div>
-          <div className="next-stop-card__content">
-            <span className="route-number">{nextStop.sequence.toString().padStart(2, "0")}</span>
-            <div>
-              <h2>{nextStop.name}</h2>
-              <p><MapPinned size={15} /> {nextStop.address}</p>
+        {nextStop ? (
+          <article className="next-stop-card">
+            <div className="next-stop-card__head">
+              <span className="section-kicker">Next assigned stop</span>
+              <span className="eta-chip"><Timer size={14} /> Stop {nextStop.sequence} of {stops.length}</span>
             </div>
-          </div>
-          <div className="next-stop-card__measurements">
-            <span><Gauge size={15} /> {nextStop.fillPercent}% full</span>
-            <span><Fuel size={15} /> {nextStop.capacityKg ? `${nextStop.capacityKg} kg capacity` : "capacity not set"}</span>
-            <span><LocateFixed size={15} /> real address saved</span>
-          </div>
-        </article>
+            <div className="next-stop-card__content">
+              <span className="route-number">{nextStop.sequence.toString().padStart(2, "0")}</span>
+              <div>
+                <h2>{nextStop.name}</h2>
+                <p><MapPinned size={15} /> {nextStop.address}</p>
+              </div>
+            </div>
+            <div className="next-stop-card__measurements">
+              <span><Gauge size={15} /> {nextStop.fillPercent}% full</span>
+              <span><Database size={15} /> {nextStop.capacityKg ? `${nextStop.capacityKg} kg bin capacity note` : "bin capacity not set"}</span>
+              <span><Crosshair size={15} /> GPS proof not connected</span>
+            </div>
+          </article>
+        ) : (
+          <article className="next-stop-card next-stop-card--complete">
+            <div className="next-stop-card__head">
+              <span className="section-kicker">All stops resolved</span>
+              <span className="eta-chip"><Check size={14} /> Ready to finish</span>
+            </div>
+            <div className="next-stop-card__content">
+              <span className="route-number"><Check size={24} /></span>
+              <div>
+                <h2>{isShiftComplete ? "Shift completed" : "Finish the route"}</h2>
+                <p>{stopCounts.collected} collected · {stopCounts.inaccessible} inaccessible · {stopCounts.damaged} damaged</p>
+              </div>
+            </div>
+            {!isShiftComplete && <button className="primary-button" type="button" onClick={endShift}><Pause size={16} /> End shift</button>}
+          </article>
+        )}
       </section>
 
       <section className="driver-content-grid">
@@ -306,7 +515,7 @@ export function DriverWorkspace() {
           <div className="panel-heading">
             <div>
               <span className="section-kicker">Route execution</span>
-              <h2>Stops in service order</h2>
+              <h2>Stops in approved service order</h2>
             </div>
             <CompletionRing percent={progress} />
           </div>
@@ -328,21 +537,43 @@ export function DriverWorkspace() {
                   </div>
                   <div className="route-stop__meta">
                     <span><Route size={14} /> Stop {stop.sequence} of {stops.length}</span>
-                    <span><Fuel size={14} /> {stop.capacityKg ? `${stop.capacityKg} kg capacity` : "capacity not set"}</span>
-                    <span><Crosshair size={14} /> Verify within 50 m</span>
+                    <span><Database size={14} /> {stop.capacityKg ? `${stop.capacityKg} kg bin capacity note` : "bin capacity not set"}</span>
+                    <span><Crosshair size={14} /> manual, unverified showcase record</span>
                   </div>
-                  {stop.status === "pending" && (
-                    <div className="route-stop__actions">
-                      <button type="button" className="stop-action stop-action--confirm" onClick={() => updateStop(stop.id, "collected")}>
-                        <Check size={15} /> Collect
-                      </button>
-                      <button type="button" className="stop-action" onClick={() => updateStop(stop.id, "inaccessible")}>
-                        <CircleAlert size={15} /> Skip
-                      </button>
-                      <button type="button" className="stop-action" onClick={() => updateStop(stop.id, "damaged")}>
-                        <AlertTriangle size={15} /> Damaged
-                      </button>
-                    </div>
+                  {stop.record?.note && <p className="route-stop__exception"><CircleAlert size={14} /> {stop.record.note}</p>}
+                  {stop.record && <p className="route-stop__recorded">Recorded locally · {formatTimestamp(stop.record.recordedAt)}</p>}
+                  {stop.status === "pending" && isShiftActive && (
+                    exceptionDraft?.stopId === stop.id ? (
+                      <div className="route-exception-form">
+                        <label className="field-label">
+                          Why is this stop {exceptionDraft.status}?
+                          <input
+                            autoFocus
+                            value={exceptionDraft.note}
+                            placeholder="Add a short reason for Dispatch"
+                            onChange={(event) => setExceptionDraft({ ...exceptionDraft, note: event.target.value })}
+                          />
+                        </label>
+                        <div>
+                          <button className="stop-action" type="button" onClick={() => setExceptionDraft(null)}>Cancel</button>
+                          <button className="stop-action stop-action--confirm" type="button" disabled={!exceptionDraft.note.trim()} onClick={() => void updateStop(stop.id, exceptionDraft.status, exceptionDraft.note)}>
+                            Save {exceptionDraft.status}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="route-stop__actions">
+                        <button type="button" className="stop-action stop-action--confirm" onClick={() => void updateStop(stop.id, "collected")}>
+                          <Check size={15} /> Mark collected
+                        </button>
+                        <button type="button" className="stop-action" onClick={() => setExceptionDraft({ stopId: stop.id, status: "inaccessible", note: "" })}>
+                          <CircleAlert size={15} /> Inaccessible
+                        </button>
+                        <button type="button" className="stop-action" onClick={() => setExceptionDraft({ stopId: stop.id, status: "damaged", note: "" })}>
+                          <AlertTriangle size={15} /> Damaged
+                        </button>
+                      </div>
+                    )
                   )}
                 </div>
               </article>
@@ -354,27 +585,45 @@ export function DriverWorkspace() {
           <article className="panel safety-card" id="safety">
             <div className="safety-card__icon"><ShieldAlert size={20} /></div>
             <div>
-              <span className="section-kicker">Safety line</span>
-              <h2>Need urgent support?</h2>
-              <p>Report road hazards or send an SOS to the dispatcher from your active shift.</p>
+              <span className="section-kicker">Safety hand-off</span>
+              <h2>Need dispatcher support?</h2>
+              <p>Road hazards and SOS records appear in the local Dispatch safety centre. No live alert is sent from this prototype.</p>
             </div>
-            <button className={`sos-button ${sosRaised ? "sos-button--raised" : ""}`} type="button" onClick={raiseSos}>
-              <Siren size={18} /> {sosRaised ? "SOS preview sent" : "Trigger SOS"}
+            <button className={`sos-button ${hasRaisedSos ? "sos-button--raised" : ""}`} type="button" onClick={raiseSos} disabled={!isShiftActive || hasRaisedSos}>
+              <Siren size={18} /> {hasRaisedSos ? "SOS awaiting review" : "Record SOS"}
             </button>
-            <button className="text-button" type="button" onClick={reportRoadHazard}>
-              Report road hazard <ChevronRight size={15} />
-            </button>
+            {isHazardFormOpen ? (
+              <form className="incident-entry-form" onSubmit={submitRoadHazard}>
+                <label className="field-label">
+                  Road-hazard description
+                  <input
+                    autoFocus
+                    value={hazardNote}
+                    placeholder="For example, flooded lane or blocked access"
+                    onChange={(event) => setHazardNote(event.target.value)}
+                  />
+                </label>
+                <div>
+                  <button className="stop-action" type="button" onClick={() => { setIsHazardFormOpen(false); setHazardNote(""); }}>Cancel</button>
+                  <button className="stop-action stop-action--confirm" type="submit" disabled={!hazardNote.trim()}>Save hazard</button>
+                </div>
+              </form>
+            ) : (
+              <button className="text-button" type="button" onClick={reportRoadHazard} disabled={!isShiftActive}>
+                Report road hazard <ChevronRight size={15} />
+              </button>
+            )}
           </article>
 
           <article className="panel driver-map-card">
             <div className="panel-heading panel-heading--compact">
               <div>
-                <span className="section-kicker">Route overview</span>
-                <h2>{configuration.routePlan ? `${configuration.routePlan.estimatedDistanceKm} km local route` : `${stops.length} configured stops`}</h2>
+                <span className="section-kicker">Approved route overview</span>
+                <h2>{routePlan.estimatedDistanceKm} km local proximity path</h2>
               </div>
               <Navigation size={19} className="muted-icon" />
             </div>
-            <div className="driver-real-map" aria-label="Your real bin route on OpenStreetMap">
+            <div className="driver-real-map" aria-label="Assigned real-bin route on OpenStreetMap">
               <OpenStreetMapBinMap configuration={configuration} compact />
             </div>
           </article>
@@ -387,75 +636,142 @@ export function DriverWorkspace() {
 export function DispatchWorkspace() {
   const { configuration, updateConfiguration } = useShowcaseConfiguration();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [routeMessage, setRouteMessage] = useState("Configure and locate your real Ahmedabad bin addresses to build a route.");
+  const [routeMessage, setRouteMessage] = useState("Start with your real bins, then build a draft route for dispatcher review.");
 
   const locatedBins = useMemo(() => configuration.bins.filter(isLocatedBin), [configuration.bins]);
-  const orderedBins = useMemo(() => orderedShowcaseBins(configuration), [configuration]);
+  const displayBins = useMemo(() => orderedShowcaseBins(configuration), [configuration]);
+  const plannedBins = useMemo(() => plannedShowcaseBins(configuration), [configuration]);
   const priorityBins = useMemo(
     () => configuration.bins.filter((bin) => bin.fillPercent >= 85),
     [configuration.bins],
   );
   const routePlan = configuration.routePlan;
+  const stopCounts = getShowcaseStopCounts(routePlan);
+  const resolvedStops = stopCounts.collected + stopCounts.inaccessible + stopCounts.damaged;
+  const activeIncidents = routePlan?.incidents.filter((incident) => !incident.acknowledgedAt) ?? [];
+  const routeLocked = routePlan?.lifecycle === "published" || routePlan?.lifecycle === "in_progress" || routePlan?.lifecycle === "completed";
+  const assignmentReady = Boolean(routePlan?.assignment.driverName.trim() && routePlan?.assignment.vehicleLabel.trim());
+
+  function updateCurrentRoute(update: (plan: ShowcaseRoutePlan) => ShowcaseRoutePlan) {
+    updateConfiguration((current) => current.routePlan ? { ...current, routePlan: update(current.routePlan) } : current);
+  }
 
   function generateRoutes() {
+    if (routeLocked) {
+      setRouteMessage(`${routeLifecycleLabel(routePlan?.lifecycle ?? null)} is read-only. Do not rebuild a route after it has been assigned, started, or completed.`);
+      return;
+    }
     if (configuration.bins.length === 0) {
       setRouteMessage("Add your real bin addresses in Configure real bins before building a route.");
       return;
     }
-    if (locatedBins.length === 0) {
-      setRouteMessage("Locate at least one real bin address on the map before building a route.");
-      return;
-    }
     if (locatedBins.length !== configuration.bins.length) {
-      setRouteMessage(`Locate the remaining ${configuration.bins.length - locatedBins.length} bin address${configuration.bins.length - locatedBins.length === 1 ? "" : "es"} before building the final route.`);
+      setRouteMessage(`Locate all ${configuration.bins.length} configured bin${configuration.bins.length === 1 ? "" : "s"} before building a route. ${configuration.bins.length - locatedBins.length} still need location${configuration.bins.length - locatedBins.length === 1 ? "" : "s"}.`);
       return;
     }
 
     setIsGenerating(true);
-    setRouteMessage("Ordering your real Ahmedabad bin locations by local proximity…");
+    setRouteMessage("Creating a reviewable local proximity order from your saved map coordinates…");
     window.setTimeout(() => {
       const plan = createLocalShowcaseRoute(configuration);
       setIsGenerating(false);
       if (!plan) {
-        setRouteMessage("No mapped bin locations were available. Check your address lookup or coordinates.");
+        setRouteMessage("Each mapped bin needs a unique bin ID, name, and address before Dispatch can create unambiguous stop records.");
         return;
       }
-      updateConfiguration({ ...configuration, routePlan: plan });
-      setRouteMessage("Your real bin visit order is ready. This prototype uses local straight-line proximity, not a live road-routing API.");
+      updateConfiguration((current) => {
+        if (current.routePlan && current.routePlan.lifecycle !== "draft") return current;
+        const freshPlan = createLocalShowcaseRoute(current);
+        return freshPlan ? { ...current, routePlan: freshPlan } : current;
+      });
+      setRouteMessage("Draft route created. Review its stop sequence, add a driver and vehicle label, then publish it to the Driver view.");
     }, 650);
   }
 
-  function publishDemoRoute() {
-    if (!routePlan) {
-      setRouteMessage("Build the local route order before publishing it to the driver showcase.");
+  function updateAssignment(field: "driverName" | "vehicleLabel", value: string) {
+    updateCurrentRoute((plan) => plan.lifecycle === "draft"
+      ? { ...plan, assignment: { ...plan.assignment, [field]: value } }
+      : plan);
+  }
+
+  function publishRoute() {
+    if (!routePlan || routePlan.lifecycle !== "draft") {
+      setRouteMessage("Only a reviewed draft can be assigned and published.");
       return;
     }
-    updateConfiguration({
-      ...configuration,
-      routePlan: { ...routePlan, publishedAt: new Date().toISOString() },
-    });
-    setRouteMessage(`${routePlan.id} is now available in the driver showcase. No real driver was notified.`);
+    if (!assignmentReady) {
+      setRouteMessage("Enter both a driver name and vehicle reference before publishing this route.");
+      return;
+    }
+
+    const publishedAt = new Date().toISOString();
+    updateCurrentRoute((plan) => plan.lifecycle === "draft" ? {
+      ...plan,
+      assignment: {
+        driverName: plan.assignment.driverName.trim(),
+        vehicleLabel: plan.assignment.vehicleLabel.trim(),
+      },
+      lifecycle: "published",
+      publishedAt,
+    } : plan);
+    setRouteMessage(`${routePlan.id} is assigned to ${routePlan.assignment.driverName.trim()} and ready for the Driver to start a shift. No real notification was sent.`);
   }
+
+  function returnRouteToDraft() {
+    if (!routePlan || routePlan.lifecycle !== "published") {
+      setRouteMessage("Only an assigned route that has not started can be returned to draft.");
+      return;
+    }
+    updateCurrentRoute((plan) => ({
+      ...plan,
+      lifecycle: "draft",
+      publishedAt: undefined,
+      startedAt: undefined,
+      endedAt: undefined,
+      stopRecords: {},
+      incidents: [],
+    }));
+    setRouteMessage("Route returned to draft. You can revise the assignment or unlock bin setup before publishing again.");
+  }
+
+  function acknowledgeIncident(incidentId: string) {
+    const acknowledgedAt = new Date().toISOString();
+    updateCurrentRoute((plan) => ({
+      ...plan,
+      incidents: plan.incidents.map((incident) => incident.id === incidentId ? { ...incident, acknowledgedAt } : incident),
+    }));
+    setRouteMessage("Safety report acknowledged in the local showcase. A production system will retain the dispatcher identity and notification audit.");
+  }
+
+  const routeActionLabel = !routePlan
+    ? "Build local route"
+    : routePlan.lifecycle === "draft"
+      ? "Rebuild draft route"
+      : routePlan.lifecycle === "published"
+        ? "Route assigned"
+        : routePlan.lifecycle === "in_progress"
+          ? "Driver executing route"
+          : "Route completed";
 
   return (
     <AppShell
       role="dispatcher"
-      eyebrow={`Ahmedabad control centre · ${configuration.bins.length} real bin${configuration.bins.length === 1 ? "" : "s"} configured`}
-      title="Your real bin operations map"
-      subtitle="Display your own dustbin locations, review fill levels, and demonstrate the collection workflow."
+      eyebrow={`Dispatcher workflow · ${configuration.bins.length} real bin${configuration.bins.length === 1 ? "" : "s"} configured`}
+      title="Plan, assign, and monitor one route"
+      subtitle="Follow the showcase sequence: validate bins → draft route → assign driver and vehicle → publish → review execution."
     >
       <section className="metric-grid metric-grid--four">
-        <MetricCard label="Real bins added" value={String(configuration.bins.length).padStart(2, "0")} detail={`up to ${MAX_SHOWCASE_BINS} for this prototype`} tone="blue" icon={MapPinned} />
-        <MetricCard label="Locations on map" value={String(locatedBins.length).padStart(2, "0")} detail={`${Math.max(configuration.bins.length - locatedBins.length, 0)} still need locating`} tone="mint" icon={LocateFixed} />
+        <MetricCard label="Real bins added" value={String(configuration.bins.length).padStart(2, "0")} detail={`up to ${MAX_SHOWCASE_BINS} in this showcase`} tone="blue" icon={MapPinned} />
+        <MetricCard label="Map pins ready" value={String(locatedBins.length).padStart(2, "0")} detail={locatedBins.length === configuration.bins.length ? "all locations verified" : `${configuration.bins.length - locatedBins.length} need locating`} tone="mint" icon={LocateFixed} />
         <MetricCard label="Priority bins" value={String(priorityBins.length).padStart(2, "0")} detail="manual fill level at 85%+" tone="amber" icon={BellRing} />
-        <MetricCard label="Route status" value={routePlan?.publishedAt ? "Shared" : routePlan ? "Ready" : "Setup"} detail={routePlan?.publishedAt ? "shown in Driver view" : "build when locations are ready"} tone={routePlan?.publishedAt ? "mint" : "rose"} icon={Route} />
+        <MetricCard label="Route lifecycle" value={routePlan ? routePlan.lifecycle.replaceAll("_", " ") : "not planned"} detail={routePlan ? routeLifecycleLabel(routePlan.lifecycle) : "create a draft after map review"} tone={routePlan?.lifecycle === "in_progress" ? "rose" : "blue"} icon={Route} />
       </section>
 
-      <section className="dispatch-grid" id="activity">
+      <section className="dispatch-grid">
         <article className="panel real-map-panel">
           <div className="panel-heading">
             <div>
-              <span className="section-kicker">Your locations on OpenStreetMap</span>
+              <span className="section-kicker">Step 1 · validate real locations</span>
               <h2>Ahmedabad dustbin map</h2>
             </div>
             <Link className="map-control" href="/setup"><MapPinned size={16} /> Configure bins</Link>
@@ -466,20 +782,20 @@ export function DispatchWorkspace() {
             <div className="real-map-empty-state">
               <span><MapPinned size={25} /></span>
               <h3>Add your first real bin location</h3>
-              <p>Enter an Ahmedabad address and select Locate. Your own dustbin pins will appear here.</p>
+              <p>Enter an Ahmedabad address and select Locate. Your own dustbin pins will appear here before a route can be planned.</p>
               <Link className="primary-button" href="/setup">Configure real bins <ChevronRight size={17} /></Link>
             </div>
           )}
           <div className="map-footnote">
-            <Radio size={15} /> OpenStreetMap displays your configured locations. Fill levels are entered manually; no live sensor data is connected.
+            <Radio size={15} /> OpenStreetMap displays your configured locations. Fill levels are manual; no live sensor data is connected.
           </div>
         </article>
 
-        <aside className="panel bin-status-panel" id="safety">
+        <aside className="panel bin-status-panel">
           <div className="panel-heading panel-heading--compact">
             <div>
-              <span className="section-kicker">Real bin status</span>
-              <h2>Collection demand</h2>
+              <span className="section-kicker">Real bin demand</span>
+              <h2>Collection readiness</h2>
             </div>
             <Link className="text-button" href="/setup">Edit bins <ChevronRight size={15} /></Link>
           </div>
@@ -487,15 +803,26 @@ export function DispatchWorkspace() {
             <div className="bin-status-panel__empty"><MapPinned size={20} /><p>Your configured bin details will appear here.</p></div>
           ) : (
             <div className="real-bin-list">
-              {orderedBins.map((bin, index) => {
+              {displayBins.map((bin, index) => {
                 const level = bin.fillPercent >= 90 ? "critical" : bin.fillPercent >= 85 ? "high" : bin.fillPercent >= 70 ? "warning" : "normal";
+                const stopStatus = routePlan ? getShowcaseStopStatus(routePlan, bin.id) : null;
+                const statusCopy = !routePlan
+                  ? "Not routed"
+                  : routePlan.lifecycle === "draft" && stopStatus === "pending"
+                    ? "Route draft"
+                    : routePlan.lifecycle === "published" && stopStatus === "pending"
+                      ? "Assigned"
+                      : null;
                 return (
                   <article className={`real-bin-row real-bin-row--${level}`} key={bin.id}>
                     <span className="real-bin-row__number">{String(index + 1).padStart(2, "0")}</span>
                     <div className="real-bin-row__body">
                       <div><strong>{bin.name || bin.id}</strong><span>{bin.id}</span></div>
                       <p><MapPinned size={13} /> {bin.address}</p>
-                      <div className="real-bin-row__meta"><span><Gauge size={13} /> {bin.fillPercent}% full</span><span>{isLocatedBin(bin) ? "Pin ready" : "Needs location"}</span></div>
+                      <div className="real-bin-row__meta">
+                        <span><Gauge size={13} /> {bin.fillPercent}% full</span>
+                        {stopStatus && !statusCopy ? <StopStatus status={stopStatus} /> : <span>{statusCopy ?? (isLocatedBin(bin) ? "Pin ready" : "Needs location")}</span>}
+                      </div>
                     </div>
                   </article>
                 );
@@ -509,46 +836,77 @@ export function DispatchWorkspace() {
         <article className="panel planner-panel">
           <div className="planner-panel__topline">
             <div>
-              <span className="section-kicker">Local route ordering</span>
-              <h2>Build a visit sequence for your bins</h2>
-              <p>For this offline-friendly prototype, the route order is calculated from your actual map-pin proximity. Connect a road-routing API later for traffic-aware distance and ETA.</p>
+              <span className="section-kicker">Step 2 · route review and assignment</span>
+              <h2>Build a stable driver hand-off</h2>
+              <p>This showcase visits manually marked high-fill bins first, then uses local straight-line proximity. It creates a reviewable draft and never claims to be a road-safe, traffic-aware, capacity-aware, or CVRP route.</p>
             </div>
-            <div className="planner-status"><Sparkles size={16} /> No API key required</div>
+            <RouteStateChip routePlan={routePlan} />
           </div>
           <div className="planner-panel__inputs">
             <span><MapPinned size={16} /> {configuration.bins.length} real bins entered</span>
-            <span><LocateFixed size={16} /> {locatedBins.length} locations ready</span>
-            <span><Gauge size={16} /> {priorityBins.length} priority bins</span>
-            <span><Navigation size={16} /> {routePlan ? "route sequence built" : "route not built"}</span>
+            <span><LocateFixed size={16} /> {locatedBins.length} map pins ready</span>
+            <span><Gauge size={16} /> {priorityBins.length} high-fill bins</span>
+            <span><Navigation size={16} /> {routePlan ? `${plannedBins.length} planned stops` : "no route draft"}</span>
           </div>
 
           {routePlan && (
             <div className="demo-route-result" aria-live="polite">
               <div className="demo-route-result__heading">
-                <span><Check size={15} /> Your real bin order is ready</span>
+                <span><Check size={15} /> {routeLifecycleLabel(routePlan.lifecycle)}</span>
                 <strong>{routePlan.id}</strong>
               </div>
               <div className="demo-route-result__metrics">
                 <span><strong>{routePlan.orderedBinIds.length}</strong> real bins sequenced</span>
-                <span><strong>{routePlan.estimatedDistanceKm} km</strong> approx. local proximity path</span>
-                <span><strong>{priorityBins.length}</strong> high-fill bins checked</span>
-                <span><strong>{routePlan.publishedAt ? "Shared" : "Draft"}</strong> driver demo status</span>
+                <span><strong>{routePlan.estimatedDistanceKm} km</strong> local proximity path</span>
+                <span><strong>{resolvedStops}</strong> stop outcomes recorded</span>
+                <span><strong>{activeIncidents.length}</strong> safety reports open</span>
               </div>
-              <div className="demo-route-result__footer">
-                <span><Clock3 size={14} /> Generated from stored map coordinates</span>
-                <button className={`publish-demo-button ${routePlan.publishedAt ? "publish-demo-button--published" : ""}`} type="button" onClick={publishDemoRoute}>
-                  {routePlan.publishedAt ? <Check size={15} /> : <Route size={15} />}
-                  {routePlan.publishedAt ? "Published to Driver view" : "Publish to Driver view"}
-                </button>
-              </div>
+
+              {routePlan.lifecycle === "draft" && (
+                <div className="route-assignment-form">
+                  <div>
+                    <span className="section-kicker">Step 3 · assign before publishing</span>
+                    <p>Use local showcase labels only—do not enter private employee data.</p>
+                  </div>
+                  <label className="field-label">Driver label
+                    <input value={routePlan.assignment.driverName} onChange={(event) => updateAssignment("driverName", event.target.value)} placeholder="e.g. Driver 1" />
+                  </label>
+                  <label className="field-label">Vehicle label
+                    <input value={routePlan.assignment.vehicleLabel} onChange={(event) => updateAssignment("vehicleLabel", event.target.value)} placeholder="e.g. Truck 01" />
+                  </label>
+                  <button className="primary-button" type="button" onClick={publishRoute} disabled={!assignmentReady}>
+                    <Route size={16} /> Assign & publish to Driver
+                  </button>
+                </div>
+              )}
+
+              {routePlan.lifecycle === "published" && (
+                <div className="route-handoff-state">
+                  <span><UsersRound size={16} /> Assigned to <strong>{routePlan.assignment.driverName}</strong> · <Truck size={16} /> {routePlan.assignment.vehicleLabel}</span>
+                  <button className="text-button" type="button" onClick={returnRouteToDraft}>Return to draft <ChevronRight size={15} /></button>
+                </div>
+              )}
+
+              {routePlan.lifecycle === "in_progress" && (
+                <div className="route-handoff-state route-handoff-state--active">
+                  <span><Play size={16} fill="currentColor" /> {routePlan.assignment.driverName} started at {formatTimestamp(routePlan.startedAt)}. The route is now read-only.</span>
+                </div>
+              )}
+
+              {routePlan.lifecycle === "completed" && (
+                <div className="route-handoff-state route-handoff-state--complete">
+                  <span><Check size={16} /> Route completed at {formatTimestamp(routePlan.endedAt)}. Review the execution record in HR / Admin.</span>
+                  <Link className="text-button" href="/admin">Open HR / Admin <ChevronRight size={15} /></Link>
+                </div>
+              )}
             </div>
           )}
 
           <div className="planner-panel__footer">
             <p className="interaction-message" role="status">{routeMessage}</p>
-            <button className="primary-button" type="button" onClick={generateRoutes} disabled={isGenerating}>
+            <button className="primary-button" type="button" onClick={generateRoutes} disabled={isGenerating || routeLocked}>
               {isGenerating ? <RefreshCw className="spin" size={17} /> : <Route size={17} />}
-              {isGenerating ? "Ordering locations…" : routePlan ? "Rebuild local route" : "Build local route"}
+              {isGenerating ? "Creating draft…" : routeActionLabel}
             </button>
           </div>
         </article>
@@ -556,92 +914,210 @@ export function DispatchWorkspace() {
         <article className="panel route-order-panel">
           <div className="panel-heading panel-heading--compact">
             <div>
-              <span className="section-kicker">Driver hand-off</span>
-              <h2>{routePlan ? "Visit sequence" : "What the Driver sees"}</h2>
+              <span className="section-kicker">Approved stop sequence</span>
+              <h2>{routePlan ? "Driver hand-off" : "Route preview unavailable"}</h2>
             </div>
             <Navigation size={19} className="muted-icon" />
           </div>
-          {orderedBins.length === 0 ? (
-            <div className="route-order-panel__empty">Add and save your real bins to preview the driver route.</div>
+          {plannedBins.length === 0 ? (
+            <div className="route-order-panel__empty">Map every real bin, then build a draft route before a service sequence appears here.</div>
           ) : (
             <ol className="route-order-list">
-              {orderedBins.map((bin, index) => (
-                <li key={bin.id}><span>{index + 1}</span><div><strong>{bin.name || bin.id}</strong><small>{bin.address}</small></div><Gauge size={15} /></li>
+              {plannedBins.map((bin, index) => (
+                <li key={bin.id}>
+                  <span>{index + 1}</span>
+                  <div><strong>{bin.name || bin.id}</strong><small>{bin.address}</small></div>
+                  {routePlan && <StopStatus status={getShowcaseStopStatus(routePlan, bin.id)} />}
+                </li>
               ))}
             </ol>
           )}
         </article>
+      </section>
+
+      <section className="dispatch-monitor-grid">
+        <article className="panel execution-monitor-panel" id="activity">
+          <div className="panel-heading panel-heading--compact">
+            <div>
+              <span className="section-kicker">Step 4 · execution record</span>
+              <h2>Dispatcher route monitor</h2>
+            </div>
+            <RouteStateChip routePlan={routePlan} />
+          </div>
+          {!routePlan ? (
+            <div className="monitor-empty-state"><Route size={20} /><p>No route has been created. Build a draft after all real bin pins are ready.</p></div>
+          ) : (
+            <div className="execution-monitor-grid">
+              <div><span>Driver</span><strong>{routePlan.assignment.driverName || "Not assigned"}</strong></div>
+              <div><span>Vehicle</span><strong>{routePlan.assignment.vehicleLabel || "Not assigned"}</strong></div>
+              <div><span>Collected</span><strong>{stopCounts.collected}</strong></div>
+              <div><span>Exceptions</span><strong>{stopCounts.inaccessible + stopCounts.damaged}</strong></div>
+              <div><span>Pending</span><strong>{stopCounts.pending}</strong></div>
+              <div><span>Shift timing</span><strong>{routePlan.startedAt ? `${formatTimestamp(routePlan.startedAt)}${routePlan.endedAt ? ` – ${formatTimestamp(routePlan.endedAt)}` : ""}` : "Not started"}</strong></div>
+            </div>
+          )}
+        </article>
+
+        <aside className="panel incident-panel" id="safety">
+          <div className="panel-heading panel-heading--compact">
+            <div>
+              <span className="section-kicker">Safety centre · local hand-off</span>
+              <h2>Driver reports</h2>
+            </div>
+            <ShieldAlert size={19} className="muted-icon" />
+          </div>
+          {routePlan?.incidents.length ? (
+            <div className="incident-list">
+              {[...routePlan.incidents].reverse().map((incident) => (
+                <article className={`incident-row incident-row--${incident.type}`} key={incident.id}>
+                  <span>{incident.type === "sos" ? <Siren size={16} /> : <AlertTriangle size={16} />}</span>
+                  <div>
+                    <strong>{incident.type === "sos" ? "SOS" : "Road hazard"}</strong>
+                    <p>{incident.note}</p>
+                    <small>{formatTimestamp(incident.createdAt)} · {incident.acknowledgedAt ? "acknowledged locally" : "awaiting acknowledgement"}</small>
+                  </div>
+                  {!incident.acknowledgedAt && <button className="text-button" type="button" onClick={() => acknowledgeIncident(incident.id)}>Acknowledge</button>}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="monitor-empty-state"><ShieldCheck size={20} /><p>No local driver hazard or SOS record yet. Live notifications are a production integration.</p></div>
+          )}
+        </aside>
       </section>
     </AppShell>
   );
 }
 
 export function AdminWorkspace() {
-  const { configuration } = useShowcaseConfiguration();
-  const [exportStatus, setExportStatus] = useState("Showcase payroll data is ready for a local CSV preview.");
-  const locatedBinCount = configuration.bins.filter(isLocatedBin).length;
+  const { configuration, updateConfiguration } = useShowcaseConfiguration();
+  const [exportStatus, setExportStatus] = useState("Complete one local showcase route to enable its execution CSV.");
+  const routePlan = configuration.routePlan;
+  const plannedBins = useMemo(() => plannedShowcaseBins(configuration), [configuration]);
+  const stopCounts = getShowcaseStopCounts(routePlan);
+  const exceptionCount = stopCounts.inaccessible + stopCounts.damaged;
+  const canExport = routePlan?.lifecycle === "completed";
+
+  function downloadExecutionCsv() {
+    if (!routePlan || routePlan.lifecycle !== "completed") {
+      setExportStatus("Finish every stop and end the local showcase shift before downloading its execution CSV.");
+      return;
+    }
+
+    const rows: Array<Array<string | number>> = [
+      ["Waste-Wise local showcase execution record"],
+      ["Route", routePlan.id],
+      ["Driver label", routePlan.assignment.driverName],
+      ["Vehicle label", routePlan.assignment.vehicleLabel],
+      ["Route lifecycle", routePlan.lifecycle],
+      ["Shift started", routePlan.startedAt ?? ""],
+      ["Shift ended", routePlan.endedAt ?? ""],
+      ["Collected stops", stopCounts.collected],
+      ["Exception stops", exceptionCount],
+      [],
+      ["Sequence", "Bin ID", "Bin name", "Address", "Outcome", "Recorded at", "Exception note", "Verification"],
+      ...plannedBins.map((bin, index) => {
+        const record = getShowcaseStopRecord(routePlan, bin.id);
+        return [
+          index + 1,
+          bin.id,
+          bin.name,
+          bin.address,
+          getShowcaseStopStatus(routePlan, bin.id),
+          record?.recordedAt ?? "",
+          record?.note ?? "",
+          record?.verification ?? "pending",
+        ];
+      }),
+    ];
+    const csv = rows.map((row) => row.map(csvValue).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${routePlan.id.toLowerCase()}-showcase-execution.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setExportStatus("Local execution CSV downloaded. It is a showcase record, not an approved payroll export.");
+  }
+
+  function startNewShowcaseRoute() {
+    if (!routePlan || routePlan.lifecycle !== "completed") {
+      setExportStatus("Finish the current route before starting a new local showcase route.");
+      return;
+    }
+    if (!window.confirm("Start a new showcase route? The completed local route record will be cleared, while your saved bin locations stay in place.")) return;
+    updateConfiguration((current) => current.routePlan?.lifecycle === "completed" ? { ...current, routePlan: null } : current);
+    setExportStatus("Completed local route cleared. Your real bin locations remain saved; return to Dispatch to create the next draft.");
+  }
 
   return (
     <AppShell
       role="admin"
-      eyebrow="Ahmedabad administration · September payroll cycle"
-      title="People, fleet & payroll"
-      subtitle="A presentation-ready view of people, fleet, payroll, and accountable field work."
+      eyebrow="HR / Admin · local showcase records"
+      title="Review route execution with an honest admin boundary"
+      subtitle="This view uses the same configured bins and route execution record. No account, wage, or fleet record has been supplied for this demo."
     >
       <section className="metric-grid metric-grid--four">
-        <MetricCard label="Active staff" value="42" detail="39 on active roster" tone="mint" icon={UsersRound} />
-        <MetricCard label="Open shifts" value="06" detail="3 routes in progress" tone="blue" icon={Clock3} />
-        <MetricCard label="Payroll pending" value="₹ 84,260" detail="11 shifts await approval" tone="amber" icon={ArrowDownToLine} />
-        <MetricCard label="Real bins mapped" value={`${locatedBinCount} / ${configuration.bins.length}`} detail="saved in this browser" tone="rose" icon={MapPinned} />
+        <MetricCard label="Real bins mapped" value={`${configuration.bins.filter(isLocatedBin).length} / ${configuration.bins.length}`} detail="saved in this browser" tone="mint" icon={MapPinned} />
+        <MetricCard label="Route lifecycle" value={routePlan ? routePlan.lifecycle.replaceAll("_", " ") : "not planned"} detail={routePlan ? routeLifecycleLabel(routePlan.lifecycle) : "awaiting Dispatch"} tone="blue" icon={Route} />
+        <MetricCard label="Bins collected" value={String(stopCounts.collected).padStart(2, "0")} detail={routePlan ? "local manual outcomes" : "no route record"} tone="amber" icon={Check} />
+        <MetricCard label="Exceptions" value={String(exceptionCount).padStart(2, "0")} detail={exceptionCount ? "review with Dispatcher" : "none recorded"} tone="rose" icon={CircleAlert} />
       </section>
 
       <section className="admin-primary-grid" id="activity">
         <article className="panel payroll-panel">
           <div className="panel-heading">
             <div>
-              <span className="section-kicker">Shift & payroll ledger</span>
-              <h2>Today&apos;s field activity</h2>
+              <span className="section-kicker">Current showcase shift</span>
+              <h2>Route execution ledger</h2>
             </div>
-            <button className="primary-button primary-button--compact" type="button" onClick={() => setExportStatus("CSV showcase preview generated. No real payroll or employee data is exported.") }>
-              <ArrowDownToLine size={16} /> Export CSV
+            <button className="primary-button primary-button--compact" type="button" onClick={downloadExecutionCsv} disabled={!canExport}>
+              <ArrowDownToLine size={16} /> Download execution CSV
             </button>
           </div>
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr><th>Driver</th><th>Route</th><th>Clock in</th><th>Bins</th><th>Status</th><th aria-label="Actions" /></tr>
-              </thead>
-              <tbody>
-                {shiftRows.map((shift) => (
-                  <tr key={shift.route}>
-                    <td><span className="table-person"><i>{shift.driver.split(" ").map((word) => word[0]).join("")}</i>{shift.driver}</span></td>
-                    <td>{shift.route}</td>
-                    <td>{shift.clockIn}</td>
-                    <td>{shift.bins}</td>
-                    <td><span className={`table-status table-status--${shift.status.toLowerCase()}`}>{shift.status}</span></td>
-                    <td><button className="row-button" type="button">Review <ChevronRight size={14} /></button></td>
+          {!routePlan ? (
+            <div className="admin-empty-state">
+              <Route size={21} />
+              <div><strong>No showcase route exists yet</strong><p>Dispatch must build and publish a route; then the Driver can start and complete a local shift.</p></div>
+              <Link className="text-button" href="/dispatch">Open Dispatch <ChevronRight size={15} /></Link>
+            </div>
+          ) : (
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr><th>Route</th><th>Driver label</th><th>Vehicle label</th><th>Shift start</th><th>Shift end</th><th>Collected</th><th>Exceptions</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{routePlan.id}</td>
+                    <td>{routePlan.assignment.driverName || "Not assigned"}</td>
+                    <td>{routePlan.assignment.vehicleLabel || "Not assigned"}</td>
+                    <td>{formatTimestamp(routePlan.startedAt)}</td>
+                    <td>{formatTimestamp(routePlan.endedAt)}</td>
+                    <td>{stopCounts.collected}</td>
+                    <td>{exceptionCount}</td>
+                    <td><RouteStateChip routePlan={routePlan} /></td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+          )}
           <p className="interaction-message">{exportStatus}</p>
         </article>
 
-        <aside className="panel payroll-summary-card">
-          <span className="section-kicker">Current cycle</span>
-          <h2>Payroll readiness</h2>
-          <div className="payroll-amount">₹ 84,260</div>
-          <p>Showcase-only estimated wage total across 31 sample shifts.</p>
-          <div className="payroll-summary-card__progress">
-            <div><span>Approval progress</span><strong>74%</strong></div>
-            <RouteProgress progress={74} />
+        <aside className="panel admin-handoff-card">
+          <span className="section-kicker">Admin hand-off</span>
+          <h2>What this demo can verify</h2>
+          <div className="admin-handoff-card__facts">
+            <span><UsersRound size={16} /><small>Driver label</small><strong>{routePlan?.assignment.driverName || "Not assigned"}</strong></span>
+            <span><Truck size={16} /><small>Vehicle label</small><strong>{routePlan?.assignment.vehicleLabel || "Not assigned"}</strong></span>
+            <span><Clock3 size={16} /><small>Worked duration</small><strong>{formatShiftDuration(routePlan?.startedAt, routePlan?.endedAt)}</strong></span>
+            <span><ShieldAlert size={16} /><small>Safety reports</small><strong>{routePlan?.incidents.length ?? 0}</strong></span>
           </div>
-          <div className="payroll-summary-card__facts">
-            <span><Check size={15} /> 31 approved</span>
-            <span><Clock3 size={15} /> 11 to review</span>
-          </div>
-          <button className="text-button" type="button">Review payroll queue <ChevronRight size={15} /></button>
+          <p>Labels, route timing, and outcomes are stored locally for this showcase. They are not employee accounts, wage calculations, approved payroll, or a production vehicle registry.</p>
+          <Link className="text-button" href="/dispatch">Review with Dispatcher <ChevronRight size={15} /></Link>
+          {canExport && <button className="text-button" type="button" onClick={startNewShowcaseRoute}><RefreshCw size={15} /> Start a new local route</button>}
         </aside>
       </section>
 
@@ -649,27 +1125,30 @@ export function AdminWorkspace() {
         <article className="panel vehicle-registry-panel">
           <div className="panel-heading panel-heading--compact">
             <div>
-              <span className="section-kicker">Your real bin registry</span>
-              <h2>Configured dustbin locations</h2>
+              <span className="section-kicker">Configured bin registry</span>
+              <h2>Real dustbin locations</h2>
             </div>
             <Link className="text-button" href="/setup">Manage bins <ChevronRight size={15} /></Link>
           </div>
           {configuration.bins.length === 0 ? (
             <div className="vehicle-grid__empty">
               <MapPinned size={19} />
-              <span>Add your real Ahmedabad dustbins to show them across Dispatcher and Driver views.</span>
+              <span>Add real Ahmedabad dustbins before reviewing route or execution records.</span>
               <Link className="text-button" href="/setup">Configure bins <ChevronRight size={15} /></Link>
             </div>
           ) : (
             <div className="vehicle-grid">
-              {configuration.bins.slice(0, 3).map((bin) => (
-                <article className={`vehicle-card ${isLocatedBin(bin) ? "vehicle-card--ready" : "vehicle-card--service"}`} key={bin.id}>
-                  <span><MapPinned size={18} /> {bin.name || bin.id}</span>
-                  <strong>{bin.id}</strong>
-                  <small><i /> {bin.fillPercent}% full · {isLocatedBin(bin) ? "map pin ready" : "needs location"}</small>
-                </article>
-              ))}
-              {configuration.bins.length > 3 && <article className="vehicle-card vehicle-card--more"><span><Plus size={18} /> More real bins</span><strong>+{configuration.bins.length - 3} configured</strong><small>View all locations in Dispatcher</small></article>}
+              {configuration.bins.slice(0, 3).map((bin) => {
+                const status = routePlan ? getShowcaseStopStatus(routePlan, bin.id) : null;
+                return (
+                  <article className={`vehicle-card ${isLocatedBin(bin) ? "vehicle-card--ready" : "vehicle-card--service"}`} key={bin.id}>
+                    <span><MapPinned size={18} /> {bin.name || bin.id}</span>
+                    <strong>{bin.id}</strong>
+                    <small><i /> {bin.fillPercent}% full · {status ? `route: ${status}` : isLocatedBin(bin) ? "map pin ready" : "needs location"}</small>
+                  </article>
+                );
+              })}
+              {configuration.bins.length > 3 && <article className="vehicle-card vehicle-card--more"><span><Plus size={18} /> More real bins</span><strong>+{configuration.bins.length - 3} configured</strong><small>View all locations in Dispatch</small></article>}
             </div>
           )}
         </article>
@@ -677,15 +1156,15 @@ export function AdminWorkspace() {
         <article className="panel roster-panel" id="help">
           <div className="panel-heading panel-heading--compact">
             <div>
-              <span className="section-kicker">Access & roster</span>
-              <h2>Role coverage</h2>
+              <span className="section-kicker">Production admin modules</span>
+              <h2>What remains intentionally unconnected</h2>
             </div>
             <ShieldCheck size={19} className="muted-icon" />
           </div>
-          <div className="role-coverage">
-            <div><span className="role-coverage__icon"><UsersRound size={16} /></span><p><strong>34 drivers</strong><small>4 scheduled off duty</small></p><span className="role-coverage__tag">Covered</span></div>
-            <div><span className="role-coverage__icon"><Radio size={16} /></span><p><strong>5 dispatchers</strong><small>2 in the control centre</small></p><span className="role-coverage__tag">Covered</span></div>
-            <div><span className="role-coverage__icon"><ShieldCheck size={16} /></span><p><strong>3 administrators</strong><small>Payroll review enabled</small></p><span className="role-coverage__tag">Active</span></div>
+          <div className="admin-readiness-list">
+            <div><span><UsersRound size={16} /></span><p><strong>Accounts & roles</strong><small>Require Supabase authentication and server-side authorization.</small></p><em>Planned</em></div>
+            <div><span><Truck size={16} /></span><p><strong>Vehicle registry</strong><small>Only the route&apos;s local vehicle label is captured for this demo.</small></p><em>Planned</em></div>
+            <div><span><ArrowDownToLine size={16} /></span><p><strong>Payroll export</strong><small>CSV shows showcase execution only; wage approval needs real staff data.</small></p><em>Guarded</em></div>
           </div>
         </article>
       </section>
