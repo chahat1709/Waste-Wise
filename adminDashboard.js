@@ -45,14 +45,14 @@ function populateDustbinTable(bins) {
       <td>${bin.location}</td>
       <td>${bin.fullness || 0}%</td>
       <td>
-        <button onclick="deleteDustbin(${bin.id})">Delete</button>
+        <button onclick="deleteDustbin('${bin.id}')">Delete</button>
       </td>
     `;
 
-    // Row click redirects to signup.html with bin ID
+    // Row click opens live bin telemetry for that bin
     row.addEventListener("click", (event) => {
       if (event.target.tagName.toLowerCase() !== "button") {
-        window.location.href = "signup.html?binId=" + encodeURIComponent(bin.id);
+        window.location.href = "binStatus.html?binId=" + encodeURIComponent(bin.id);
       }
     });
 

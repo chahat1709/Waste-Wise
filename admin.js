@@ -114,10 +114,21 @@ async function fetchBins() {
     try {
         const { data, error } = await supabase.from("bins").select("*");
         if (error) throw error;
-        systemData.bins = data || [];
+        if (data && data.length > 0) { systemData.bins = data; return; }
+        throw new Error('No data from Supabase');
     } catch (error) {
-        console.error('Error fetching bins:', error);
-        // Fallback to mock data
+        console.warn('Supabase fetchBins failed, trying server API:', error.message);
+        try {
+            const resp = await fetch('/bins');
+            if (resp.ok) {
+                const body = await resp.json();
+                const bins = body.bins || [];
+                if (Array.isArray(bins) && bins.length > 0) {
+                    systemData.bins = bins.map(b => ({ id: b.id, location: b.location || `${b.lat||''},${b.lng||''}`, latitude: b.lat, longitude: b.lng, fullness: b.fullness||0, status: b.status||'active', capacity: b.capacity||100 }));
+                    return;
+                }
+            }
+        } catch (e) { console.warn('Server /bins fallback failed', e.message); }
         systemData.bins = [
             { id: 1, location: 'Main St & 1st Ave', latitude: 12.9716, longitude: 77.5946, fullness: 75, status: 'active', capacity: 100 },
             { id: 2, location: 'Park Avenue', latitude: 12.9720, longitude: 77.5950, fullness: 45, status: 'active', capacity: 100 },

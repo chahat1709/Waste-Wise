@@ -98,17 +98,39 @@ document.addEventListener('DOMContentLoaded', function() {
             const originalText = submitBtn.textContent;
             submitBtn.textContent = 'Signing in...';
             submitBtn.disabled = true;
-            
-            // Simulate admin authentication (replace with actual API call)
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            // Check credentials (replace with actual authentication)
+
+            // Try Firebase first if available, fallback to demo credentials
+            let authenticated = false;
+            try {
+                // Attempt to use Firebase if config is reachable
+                const cfgResp = await fetch('/api/config').catch(()=>null);
+                if (cfgResp && cfgResp.ok) {
+                    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                    const { getAuth, signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                    const cfg = await cfgResp.json();
+                    const app = initializeApp(cfg.firebaseConfig);
+                    const auth = getAuth(app);
+                    await signInWithEmailAndPassword(auth, email, password);
+                    authenticated = true;
+                    localStorage.setItem('adminLoggedIn','true');
+                    localStorage.setItem('adminEmail',email);
+                    await showMessageBox('Login Successful', 'Welcome to Admin Portal!', false);
+                    window.location.href = 'admindashboard.html';
+                    return;
+                }
+            } catch (fbErr) {
+                console.warn('Firebase admin login fallback:', fbErr.message);
+            }
+
+            // Demo fallback (for offline/dev)
+            await new Promise(resolve => setTimeout(resolve, 400));
             if (email === 'admin@wastewise.com' && password === 'admin123') {
-                await showMessageBox('Login Successful', 'Welcome to Admin Portal!', false);
-                // Redirect to admin dashboard
+                localStorage.setItem('adminLoggedIn','true');
+                localStorage.setItem('adminEmail',email);
+                await showMessageBox('Login Successful', 'Welcome to Admin Portal! (Demo)', false);
                 window.location.href = 'admindashboard.html';
             } else {
-                errorMessage.textContent = 'Invalid admin credentials';
+                errorMessage.textContent = 'Invalid admin credentials (hint: admin@wastewise.com / admin123)';
                 errorMessage.classList.remove('hidden');
             }
             

@@ -1,60 +1,156 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Waste Wise</title>
-    <link rel="stylesheet" href="login-styles.css">
-
-    <!-- आपका मुख्य index.js स्क्रिप्ट -->
-    <script src="index.js" type="module" defer></script> 
-    
-    <!-- Language feature removed -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waste Wise — Gate</title>
+<link rel="stylesheet" href="design-tokens.css">
+<script src="index.js" type="module" defer></script>
+<style>
+  body{ background:var(--color-paper-100); overflow-x:hidden}
+  .gate{ min-height:100vh; display:grid; grid-template-columns: 1.15fr .85fr; }
+  /* Left editorial */
+  .gate-left{
+    background:var(--color-ink-950); color:var(--color-paper-100);
+    padding: clamp(24px, 4vw, 48px); display:flex; flex-direction:column; justify-content:space-between;
+    position:relative; overflow:hidden;
+    border-right:1px solid #1a2e22;
+  }
+  .grain{
+    position:absolute; inset:0; opacity:.06; pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wordmark{ position:relative}
+  .kicker{ font-family:var(--font-mono); font-size:var(--text-xs); letter-spacing:var(--tracking-ultra); color:var(--color-acid-400); display:flex; gap:12px; align-items:center}
+  .kicker i{ width:8px; height:8px; background:var(--color-acid-400); border-radius:50%; display:inline-block; box-shadow:0 0 0 6px rgba(214,255,42,.15)}
+  .display{
+    font-family:var(--font-serif); font-weight:600; line-height:.88; letter-spacing:-.04em;
+    font-size: clamp(64px, 10vw, 136px); margin-top:18px;
+  }
+  .display span{ display:block}
+  .display .outline{ color:transparent; -webkit-text-stroke:1.5px var(--color-paper-100); }
+  .display .acid{ color:var(--color-acid-400)}
+  .lede{ font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; color:#a8b5b0; max-width:42ch; margin-top:18px; line-height:1.7}
+  .stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:32px; position:relative}
+  .stat{ border:1px solid #1e3528; background:rgba(255,255,255,.03); padding:14px 12px; border-radius:12px}
+  .stat b{ font-family:var(--font-mono); font-size:18px; color:var(--color-acid-400); display:block}
+  .stat span{ font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; color:#8aa09a}
+  .foot-left{ font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; color:#6b857d; display:flex; justify-content:space-between; position:relative}
+  /* Right */
+  .gate-right{
+    padding: clamp(20px, 3vw, 36px); display:flex; flex-direction:column; justify-content:center; gap:20px;
+    background:var(--color-paper-100);
+  }
+  .eyebrow{ font-family:var(--font-mono); font-size:10px; letter-spacing:.18em; color:var(--color-slate-500)}
+  .role-panel h2{ font-family:var(--font-display); font-size:22px; letter-spacing:-.02em; color:var(--color-ink-950)}
+  .role-panel p{ font-family:var(--font-mono); font-size:11px; color:var(--color-slate-600); margin-top:6px}
+  .roles{ display:grid; gap:14px; margin-top:18px}
+  .role-btn{
+    display:flex; align-items:center; justify-content:space-between; text-align:left;
+    padding:22px 18px; border-radius:16px; border:1.5px solid var(--color-line); cursor:pointer;
+    font-family:var(--font-display); font-weight:700; font-size:18px; letter-spacing:-.02em;
+    transition: transform .18s, box-shadow .18s, background .18s; position:relative; overflow:hidden;
+  }
+  .role-btn .meta{ font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; font-weight:400; opacity:.7; display:block; margin-top:4px}
+  .role-btn .arrow{ width:40px; height:40px; border-radius:999px; display:grid; place-items:center; font-size:14px; border:1px solid currentColor}
+  .role-btn.admin-btn{ background:var(--color-ink-950); color:var(--color-paper-100)}
+  .role-btn.driver-btn{ background:#fff; color:var(--color-ink-950); border-width:2px}
+  .role-btn.driver-btn .arrow{ background:var(--color-acid-400); border-color:var(--color-ink-950); color:var(--color-ink-950)}
+  .role-btn:hover{ transform:translateY(-2px); box-shadow:var(--shadow-md)}
+  .role-btn:active{ transform:translateY(0)}
+  /* Admin login slide */
+  .login-panel{ background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:22px; box-shadow:var(--shadow-lg); }
+  .login-panel h2{ font-family:var(--font-display); font-size:18px}
+  .field{ display:flex; flex-direction:column; gap:6px; margin-top:14px}
+  .field label{ font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; color:var(--color-slate-600)}
+  .input-field{
+    padding:12px 14px; border:1.5px solid var(--color-border); border-radius:12px; background:var(--color-paper-50);
+    font-family:var(--font-mono); font-size:13px; outline:none; transition:border .15s, box-shadow .15s;
+  }
+  .input-field:focus{ border-color:var(--color-ink-950); box-shadow:0 0 0 3px rgba(214,255,42,.35)}
+  .submit-btn{ margin-top:16px; width:100%; padding:14px; border-radius:999px; border:1.5px solid var(--color-ink-950); background:var(--color-ink-950); color:var(--color-acid-400); font-family:var(--font-mono); font-size:12px; letter-spacing:.12em; font-weight:700; cursor:pointer}
+  .submit-btn:hover{ background:var(--color-acid-400); color:var(--color-ink-950)}
+  .back-btn{ margin-top:12px; width:100%; padding:12px; border-radius:999px; border:1px dashed var(--color-border); background:transparent; font-family:var(--font-mono); font-size:11px; letter-spacing:.1em; cursor:pointer}
+  .hidden{ display:none !important}
+  .error{ margin-top:12px; font-family:var(--font-mono); font-size:11px; color:var(--color-hazard-500); background:#fff1f2; border:1px solid #ffe4e6; padding:10px 12px; border-radius:10px}
+  .mono-foot{ font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; color:var(--color-slate-500); text-align:center; margin-top:18px}
+  /* Message box tokens */
+  .message-box{ position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; padding:24px; border-radius:16px; border:1.5px solid var(--color-line); box-shadow:var(--shadow-lg); z-index:1000; display:none; max-width:380px; width:90%}
+  .message-box.show{ display:block}
+  .overlay{ position:fixed; inset:0; background:rgba(11,26,19,.45); backdrop-filter:blur(4px); z-index:999; display:none}
+  .overlay.show{ display:block}
+  .message-box h3{ font-family:var(--font-display); font-size:16px}
+  .message-box p{ font-family:var(--font-mono); font-size:12px; color:var(--color-slate-600); margin-top:8px; line-height:1.6}
+  .message-box button{ margin-top:14px; padding:10px 14px; border-radius:999px; border:1.5px solid var(--color-ink-950); background:var(--color-ink-950); color:var(--color-acid-400); font-family:var(--font-mono); font-size:11px; letter-spacing:.1em; cursor:pointer}
+  .message-box button.cancel-btn{ background:#fff; color:var(--color-ink-950); margin-left:8px}
+  @media (max-width:900px){ .gate{ grid-template-columns:1fr} .display{ font-size:64px} .gate-left{ min-height:42vh} }
+</style>
 </head>
 <body>
-    <header class="header">
-        <h1 class="logo">Waste Wise</h1>
-    </header>
-    <main class="container">
-        <!-- Role selection section -->
-        <section id="role-selection" class="role-panel">
-            <h2>Select your role</h2>
-            <div class="buttons">
-                <button class="btn role-btn admin-btn" data-role="admin">Admin</button>
-                <button class="btn role-btn driver-btn" data-role="driver">Driver</button>
-            </div>
-        </section>
-
-        <!-- Admin login section -->
-        <section id="admin-login" class="login-panel hidden">
-            <h2>Admin Login</h2>
-            <form id="admin-login-form">
-                <label for="admin-email">ईमेल पता</label>
-                <input type="email" id="admin-email" class="input-field" placeholder="अपना ईमेल दर्ज करें" required>
-
-                <label for="admin-password">पासवर्ड</label>
-                <input type="password" id="admin-password" class="input-field" placeholder="अपना पासवर्ड दर्ज करें" required>
-
-                <button type="submit" class="btn submit-btn">Log In</button>
-            </form>
-            <p id="error-message" class="error hidden">अवैध ईमेल या पासवर्ड!</p>
-            <button class="btn back-btn" id="back-to-roles">← Back to roles</button>
-        </section>
-    </main>
-    <footer class="footer">
-        <p>&copy; 2025 Waste Wise | उद्देश्य के साथ निर्मित</p>
-    </footer>
-
-    <!-- Language feature removed -->
-
-    <!-- कस्टम मैसेज बॉक्स / मोडल HTML -->
-    <div id="messageBox" class="message-box">
-        <h3 id="messageBoxTitle"></h3>
-        <p id="messageBoxContent"></p>
-        <button id="messageBoxConfirmBtn">ठीक है</button>
-        <button id="messageBoxCancelBtn" class="cancel-btn hidden">रद्द करें</button>
+<div class="gate">
+  <div class="gate-left">
+    <div class="grain"></div>
+    <div class="wordmark">
+      <div class="kicker"><i></i> MUNICIPAL LOGISTICS · LIVE TELEMETRY · EST 2025</div>
+      <div class="display">
+        <span>WASTE</span>
+        <span class="outline">WISE</span>
+        <span class="acid">SYSTEM</span>
+      </div>
+      <p class="lede">Event-driven CVRP with OSRM road geometry. Fleet reroutes in seconds, not cron jobs. IoT bins stream fullness, weight, temperature → Socket.IO pushes hazard &amp; reroute suggestions to drivers in the field.</p>
+      <div class="stats">
+        <div class="stat"><b id="statBins">05</b><span>TOTAL BINS</span></div>
+        <div class="stat"><b id="statRoutes">01</b><span>ACTIVE ROUTE</span></div>
+        <div class="stat"><b id="statAlerts">03</b><span>LIVE ALERTS</span></div>
+      </div>
     </div>
-    <div id="overlay" class="overlay"></div>
+    <div class="foot-left"><span>© 2025 WASTE WISE</span><span>0.16s LNS · OSRM ROADS</span></div>
+  </div>
 
+  <div class="gate-right">
+    <div class="eyebrow">SELECT YOUR ROLE — CITIZEN · DRIVER · ADMIN</div>
+    <section id="role-selection" class="role-panel">
+      <h2>Who are you today?</h2>
+      <p>Citizen reports &amp; tracks. Driver executes route, collects. Admin controls fleet.</p>
+      <div class="roles">
+        <button class="role-btn citizen-btn" data-role="citizen" style="background:var(--color-acid-400);color:var(--color-ink-950);border:2px solid var(--color-line)">
+          <span>Citizen <span class="meta">Report · Track · Swachh score</span></span>
+          <span class="arrow">→</span>
+        </button>
+        <button class="role-btn driver-btn" data-role="driver">
+          <span>Driver Field <span class="meta">Map · Route · Collect</span></span>
+          <span class="arrow">→</span>
+        </button>
+        <button class="role-btn admin-btn" data-role="admin">
+          <span>Admin Control <span class="meta">Fleet · Bins · Analytics</span></span>
+          <span class="arrow">↗</span>
+        </button>
+      </div>
+      <div class="mono-foot">Demo admin: admin@wastewise.com / admin123 — driver &amp; citizen open directly (no login wall)</div>
+    </section>
+
+    <section id="admin-login" class="login-panel hidden">
+      <h2>Admin access</h2>
+      <p style="font-family:var(--font-mono);font-size:11px;color:var(--color-slate-600);margin-top:6px">Sign in to provision bins, optimise routes, monitor city.</p>
+      <form id="admin-login-form">
+        <div class="field"><label for="admin-email">Email</label><input type="email" id="admin-email" class="input-field" placeholder="admin@wastewise.com" required></div>
+        <div class="field"><label for="admin-password">Password</label><input type="password" id="admin-password" class="input-field" placeholder="••••••••" required></div>
+        <button type="submit" class="submit-btn">ENTER CONTROL →</button>
+      </form>
+      <p id="error-message" class="error hidden">Invalid email or password!</p>
+      <button class="back-btn" id="back-to-roles">← Back to roles</button>
+    </section>
+  </div>
+</div>
+
+<div id="messageBox" class="message-box"><h3 id="messageBoxTitle"></h3><p id="messageBoxContent"></p><button id="messageBoxConfirmBtn">OK</button><button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button></div>
+<div id="overlay" class="overlay"></div>
+
+<script>
+  // live stats fetch for gate polish
+  fetch('/health').catch(()=>{});
+  fetch('/bins').then(r=>r.json()).then(j=>{ const n=(j.bins||[]).length; document.getElementById('statBins').textContent=String(n).padStart(2,'0')}).catch(()=>{});
+  fetch('/alerts').then(r=>r.json()).then(j=>{ const n=(j.alerts||[]).length; document.getElementById('statAlerts').textContent=String(n).padStart(2,'0')}).catch(()=>{});
+</script>
 </body>
 </html>

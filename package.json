@@ -2,15 +2,19 @@
   "$schema": "https://json.schemastore.org/package",
   "name": "test33",
   "version": "1.0.0",
-  "description": "",
+  "description": "Smart Logistics & Routing Dashboard - CVRP solver with real-time IoT and Socket.IO",
   "main": "index.js",
   "scripts": {
-    "start": "npx live-server --port=5501 --open=./index.html",
+    "start": "node server.js",
+    "start:frontend": "npx live-server --port=5501 --open=./index.html",
     "serve-server": "node server.js",
     "start-server": "node server.js",
     "start-prod": "node server.js",
-    "dev": "concurrently \"npm run start\" \"npm run serve-server\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "concurrently \"npx live-server --port=5501 --open=./index.html\" \"node server.js\"",
+    "demo:seed": "node scripts/demo-seed.js",
+    "test:health": "node -e \"fetch('http://localhost:5000/health').then(r=>r.json()).then(j=>console.log(j)).catch(e=>console.error(e))\"",
+    "test:cvrp": "node -e \"fetch('http://localhost:5000/api/cvrp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({locations:[{lat:12.97,lng:77.59},{lat:12.972,lng:77.595},{lat:12.975,lng:77.59}],demands:[0,1,1],vehicle_capacities:[2],num_vehicles:1})}).then(r=>r.json()).then(j=>console.log(JSON.stringify(j,null,2))).catch(e=>console.error(e))\"",
+    "test": "playwright test"
   },
   "keywords": [],
   "author": "",
@@ -39,6 +43,7 @@
     "xss": "^1.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "concurrently": "^9.1.2",
     "live-server": "^1.2.0"
   }

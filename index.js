@@ -2,8 +2,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-// ✅ Supabase Client Imports
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.3/+esm";
+// NOTE: no Supabase client on the gate page — the server API (/bins, /alerts)
+// is the single data path, so the anon key is never shipped to this page.
 
 // Firebase Configuration - Direct config for Live Server
 const firebaseConfig = {
@@ -29,12 +29,6 @@ try {
 } catch (error) {
     console.error('Error initializing Firebase:', error);
 }
-
-// ✅ Supabase Configuration (Keep this for when you access Supabase after login)
-const SUPABASE_URL = "https://dwskiourizsqowlfjgiu.supabase.co";
-const SUPABASE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3c2tpb3VyaXpzcW93bGZqZ2l1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0OTYyMjYsImV4cCI6MjA1OTA3MjIyNn0.xpSfb8RhWPSisPqZLUNQ0IN30M-riqPsYuxrsxUjqIM";
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Function to display error messages using the custom message box.
 // This function will use the page modal if available.
@@ -71,8 +65,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 adminLogin.classList.remove("hidden");
                 console.log("Showing admin login");
             } else if (role === "driver") {
-                // Redirect to driver login
-                window.location.href = "login.html";
+                // Driver field terminal needs no login wall (dashboard runs demo
+                // driver-123 with REQUIRE_AUTH=false) — go straight to the map.
+                window.location.href = "dashboard.html";
+            } else if (role === "citizen") {
+                // Citizen app is open by design (Swachh participation first).
+                window.location.href = "citizen.html";
             }
         });
     });

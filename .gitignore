@@ -18,3 +18,12 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Playwright artifacts
+test-results/
+playwright-report/
+/blob-storage/
+
+# Agent/IDE cruft
+.agents/
+.claude/

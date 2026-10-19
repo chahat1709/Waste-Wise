@@ -1,82 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Waste Wise</title>
-    <link rel="stylesheet" href="login-styles.css">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — Waste Wise</title>
+<link rel="stylesheet" href="design-tokens.css">
+<style>
+  body{ background:var(--color-paper-100)}
+  .wrap{ min-height:100vh; display:grid; grid-template-columns:1.05fr .95fr}
+  .left{ background:var(--color-ink-950); color:#fff; padding:32px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden}
+  .left .grain{ position:absolute; inset:0; opacity:.05; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .clock{ font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; color:var(--color-acid-400); position:relative}
+  .title{ font-family:var(--font-serif); font-size:42px; line-height:.9; letter-spacing:-.04em; margin-top:18px; position:relative}
+  .title span{ color:var(--color-acid-400)}
+  .copy{ font-family:var(--font-mono); font-size:11px; line-height:1.7; color:#a8b5b0; max-width:36ch; margin-top:14px; position:relative}
+  .bin-stage{ position:relative; margin-top:24px; display:flex; gap:18px; align-items:end}
+  .bin{ width:120px; cursor:pointer; transition:transform .2s}
+  .bin:hover{ transform:translateY(-4px)}
+  .bin.talking{ animation:talk .4s ease infinite alternate}
+  @keyframes talk{ from{ transform:translateY(-2px)} to{ transform:translateY(2px)}}
+  .speech{ position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:#fff; color:var(--color-ink-950); font-family:var(--font-mono); font-size:10px; padding:6px 8px; border-radius:999px; border:1px solid var(--color-line); display:none; white-space:nowrap}
+  .bin.talking .speech{ display:block}
+  .rps-overlay{ position:absolute; inset:0; display:grid; place-items:center; font-size:28px; display:none}
+  .bin.show-rps .rps-overlay{ display:grid}
+  .right{ padding:36px; display:grid; place-items:center; background:var(--color-paper-100)}
+  .card{ width:100%; max-width:420px; background:#fff; border:1.5px solid var(--color-line); border-radius:20px; padding:28px; box-shadow:var(--shadow-lg)}
+  .eyebrow{ font-family:var(--font-mono); font-size:10px; letter-spacing:.18em; color:var(--color-slate-500)}
+  .h1{ font-family:var(--font-display); font-size:22px; letter-spacing:-.02em; margin-top:6px}
+  .sub{ font-family:var(--font-mono); font-size:11px; color:var(--color-slate-600); margin-top:6px}
+  .field{ margin-top:14px; display:flex; flex-direction:column; gap:6px}
+  .field label{ font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; color:var(--color-slate-600)}
+  .input{ padding:12px 14px; border:1.5px solid var(--color-border); border-radius:12px; background:var(--color-paper-50); font-family:var(--font-mono); font-size:13px; outline:none}
+  .input:focus{ border-color:var(--color-ink-950); box-shadow:0 0 0 3px rgba(214,255,42,.35)}
+  .btn{ width:100%; padding:13px; border-radius:999px; font-family:var(--font-mono); font-size:12px; letter-spacing:.1em; font-weight:700; cursor:pointer; border:1.5px solid var(--color-ink-950)}
+  .btn-primary{ background:var(--color-ink-950); color:var(--color-acid-400); margin-top:16px}
+  .btn-primary:hover{ background:var(--color-acid-400); color:var(--color-ink-950)}
+  .btn-google{ background:#fff; color:var(--color-ink-950); margin-top:10px; display:flex; gap:10px; justify-content:center; align-items:center}
+  .links{ display:flex; justify-content:space-between; margin-top:14px}
+  .links a{ font-family:var(--font-mono); font-size:11px; color:var(--color-slate-600); text-decoration:underline; text-underline-offset:3px}
+  .message-box{ position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:20px; width:90%; max-width:380px; display:none; z-index:1000}
+  .message-box.show{ display:block} .overlay{ position:fixed; inset:0; background:rgba(11,26,19,.45); backdrop-filter:blur(4px); display:none; z-index:999} .overlay.show{ display:block}
+  .message-box button{ margin-top:12px; padding:10px 14px; border-radius:999px; border:1.5px solid var(--color-ink-950); background:var(--color-ink-950); color:var(--color-acid-400); font-family:var(--font-mono); font-size:11px; cursor:pointer}
+  .hidden{ display:none !important}
+  @media(max-width:900px){ .wrap{ grid-template-columns:1fr} .left{ min-height:36vh} }
+</style>
 </head>
 <body>
-    <!-- Futuristic animated background (pure CSS) -->
-    <div class="bg-visual" aria-hidden="true"></div>
-    <div class="login-wrapper">
-        <div class="brand-panel">
-            <div class="clock" id="clock" aria-hidden="false">--:--:--</div>
-            <h1>Waste Wise</h1>
-            <p>Smart, sustainable waste collection — optimized for drivers and admins. Log in to continue.</p>
-            <p class="small">If you are a driver, use your company credentials. For admin access, contact your system administrator.</p>
-        </div>
-        <div class="login-panel" role="region" aria-label="Login form">
-            <div class="form-title">Welcome back</div>
-            <div class="form-sub">Sign in to manage routes and collections</div>
-            <form id="login-form" class="form-row" novalidate>
-                <label for="login-email" class="small">Email</label>
-                <input class="input" type="email" id="login-email" placeholder="you@company.com" required aria-required="true">
-
-                <label for="login-password" class="small">Password</label>
-                <input class="input" type="password" id="login-password" placeholder="Enter your password" required aria-required="true">
-
-                <button class="btn btn-primary" type="submit">Login</button>
-
-                <button class="btn btn-google" type="button" id="google-login"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle"><path d="M21.35 11.1H12v2.8h5.45c-.24 1.34-1.2 2.48-2.56 3.16v2.62h4.14c2.42-2.23 3.82-5.51 3.82-9.58 0-.7-.07-1.38-.18-2.03z" fill="#4285F4"></path><path d="M12 22c2.7 0 4.97-.9 6.63-2.45l-4.14-2.62C14.02 17 13.07 17.4 12 17.4c-2.46 0-4.54-1.66-5.29-3.88H2.46v2.43C4.1 19.9 7.75 22 12 22z" fill="#34A853"></path><path d="M6.71 12.52c-.2-.6-.32-1.24-.32-1.9 0-.66.12-1.3.32-1.9V6.29H2.46A9.99 9.99 0 002 12.62c0 1.6.34 3.12.95 4.45l3.76-2.55z" fill="#FBBC05"></path><path d="M12 6.4c1.47 0 2.78.5 3.82 1.47l2.86-2.86C16.98 3.5 14.7 2.6 12 2.6 7.75 2.6 4.1 4.7 2.46 7.9l3.76 2.43C7.46 8.06 9.54 6.4 12 6.4z" fill="#EA4335"></path></svg>
-                    <span style="vertical-align:middle">Sign in with Google</span>
-                </button>
-
-                <div class="footer-links">
-                    <a class="small" href="forgot-password.html">Forgot password?</a>
-                    <a class="small" href="signup.html">Create account</a>
-                </div>
-            </form>
-        </div>
+<div class="wrap">
+  <div class="left">
+    <div class="grain"></div>
+    <div>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="title">WASTE<br><span>WISE</span></div>
+      <p class="copy">Field-tested logistics. OSRM road geometry, LNS optimisation, Socket.IO live. Driver field terminal — tap a bin, collect, push hazard. No purple gradients, just paper + ink + acid.</p>
     </div>
-
-    <!-- Interactive dust bins for playful UI: medium and large -->
     <div class="bin-stage" aria-hidden="true">
-        <div class="bin bin-large" id="bin-large" data-size="large" title="Large bin" tabindex="0" role="button" aria-pressed="false">
-            <!-- simple bin SVG -->
-            <svg viewBox="0 0 64 64" width="120" height="140" aria-hidden="true">
-                <rect x="12" y="18" width="40" height="36" rx="3" fill="#e6f5ea" stroke="#2e7d32" stroke-width="2" />
-                <rect x="18" y="10" width="28" height="12" rx="2" fill="#dff3e4" stroke="#1b5e20" stroke-width="1.5" />
-                <circle cx="22" cy="34" r="3" fill="#c8e6c9" />
-                <circle cx="42" cy="34" r="3" fill="#c8e6c9" />
-                <!-- mouth for talking animation -->
-                <ellipse cx="32" cy="48" rx="8" ry="4" fill="#1b5e20" class="bin-mouth" />
-            </svg>
-            <div class="rps-overlay" aria-hidden="true"></div>
-            <div class="speech" aria-hidden="true"><span class="speech-text"></span></div>
-        </div>
-        <div class="bin bin-medium" id="bin-medium" data-size="medium" title="Medium bin" tabindex="0" role="button" aria-pressed="false">
-            <svg viewBox="0 0 64 64" width="90" height="110" aria-hidden="true">
-                <rect x="14" y="22" width="36" height="30" rx="3" fill="#f1fbf2" stroke="#2e7d32" stroke-width="2" />
-                <rect x="20" y="14" width="24" height="10" rx="2" fill="#e6f9e8" stroke="#1b5e20" stroke-width="1.5" />
-                <circle cx="26" cy="36" r="2.5" fill="#c8e6c9" />
-                <circle cx="38" cy="36" r="2.5" fill="#c8e6c9" />
-                <ellipse cx="32" cy="46" rx="6" ry="3" fill="#1b5e20" class="bin-mouth" />
-            </svg>
-            <div class="rps-overlay" aria-hidden="true"></div>
-            <div class="speech" aria-hidden="true"><span class="speech-text"></span></div>
-        </div>
+      <div class="bin bin-large" id="bin-large" role="button" tabindex="0">
+        <svg viewBox="0 0 64 64" width="110" height="120"><rect x="12" y="18" width="40" height="36" rx="3" fill="#fff" stroke="#0B1A13" stroke-width="1.8"/><rect x="18" y="10" width="28" height="12" rx="2" fill="#D6FF2A" stroke="#0B1A13" stroke-width="1.5"/><circle cx="22" cy="34" r="3" fill="#E8E6DE"/><circle cx="42" cy="34" r="3" fill="#E8E6DE"/><ellipse cx="32" cy="48" rx="8" ry="4" fill="#0B1A13" class="bin-mouth"/></svg>
+        <div class="rps-overlay"></div><div class="speech"><span class="speech-text"></span></div>
+      </div>
+      <div class="bin bin-medium" id="bin-medium" role="button" tabindex="0">
+        <svg viewBox="0 0 64 64" width="90" height="100"><rect x="14" y="22" width="36" height="30" rx="3" fill="#fff" stroke="#0B1A13" stroke-width="1.8"/><rect x="20" y="14" width="24" height="10" rx="2" fill="#D6FF2A" stroke="#0B1A13" stroke-width="1.5"/><ellipse cx="32" cy="46" rx="6" ry="3" fill="#0B1A13" class="bin-mouth"/></svg>
+        <div class="rps-overlay"></div><div class="speech"><span class="speech-text"></span></div>
+      </div>
     </div>
-
-    <!-- Custom Message/Confirmation Modal HTML - REQUIRED FOR showMessageBox() -->
-    <div id="messageBox" class="message-box">
-        <h3 id="messageBoxTitle"></h3>
-        <p id="messageBoxContent"></p>
-        <button id="messageBoxConfirmBtn">OK</button>
-        <button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button>
+  </div>
+  <div class="right">
+    <div class="card" role="region" aria-label="Login form">
+      <div class="eyebrow">DRIVER & ADMIN — ONE GATE</div>
+      <div class="h1">Welcome back</div>
+      <div class="sub">Sign in to manage routes and collections</div>
+      <form id="login-form" novalidate>
+        <div class="field"><label for="login-email">Email</label><input class="input" type="email" id="login-email" placeholder="you@wastewise.com" required></div>
+        <div class="field"><label for="login-password">Password</label><input class="input" type="password" id="login-password" placeholder="••••••••" required></div>
+        <button class="btn btn-primary" type="submit">LOGIN →</button>
+        <button class="btn btn-google" type="button" id="google-login"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21.35 11.1H12v2.8h5.45c-.24 1.34-1.2 2.48-2.56 3.16v2.62h4.14c2.42-2.23 3.82-5.51 3.82-9.58 0-.7-.07-1.38-.18-2.03z" fill="#4285F4"/><path d="M12 22c2.7 0 4.97-.9 6.63-2.45l-4.14-2.62C14.02 17 13.07 17.4 12 17.4c-2.46 0-4.54-1.66-5.29-3.88H2.46v2.43C4.1 19.9 7.75 22 12 22z" fill="#34A853"/><path d="M6.71 12.52c-.2-.6-.32-1.24-.32-1.9 0-.66.12-1.3.32-1.9V6.29H2.46A9.99 9.99 0 002 12.62c0 1.6.34 3.12.95 4.45l3.76-2.55z" fill="#FBBC05"/><path d="M12 6.4c1.47 0 2.78.5 3.82 1.47l2.86-2.86C16.98 3.5 14.7 2.6 12 2.6 7.75 2.6 4.1 4.7 2.46 7.9l3.76 2.43C7.46 8.06 9.54 6.4 12 6.4z" fill="#EA4335"/></svg> Sign in with Google</div>
+        <div class="links"><a href="forgot-password.html">Forgot password?</a><a href="signup.html">Create account</a></div>
+      </form>
     </div>
-    <div id="overlay" class="overlay"></div>
-
-   <script src="login-auth.js" type="module"></script> <!-- Separate auth.js for login -->
+  </div>
+</div>
+<div id="messageBox" class="message-box"><h3 id="messageBoxTitle"></h3><p id="messageBoxContent"></p><button id="messageBoxConfirmBtn">OK</button><button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button></div>
+<div id="overlay" class="overlay"></div>
+<script src="login-auth.js" type="module"></script>
 </body>
 </html>

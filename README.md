@@ -1,6 +1,6 @@
-<div align="center">
+﻿<div align="center">
 
-# ♻️ Waste-Wise
+# ΓÖ╗∩╕Å Waste-Wise
 
 ### Smart Logistics & CVRP Routing Platform
 
@@ -15,12 +15,12 @@
 
 ---
 
-## ⚡ What is Waste-Wise?
+## ΓÜí What is Waste-Wise?
 
-Waste-Wise is a **full-stack waste management and logistics platform** that solves one of operations research's hardest problems — the **Capacitated Vehicle Routing Problem (CVRP)** — and connects the mathematical solver to a real-time IoT monitoring system.
+Waste-Wise is a **full-stack waste management and logistics platform** that solves one of operations research's hardest problems ΓÇö the **Capacitated Vehicle Routing Problem (CVRP)** ΓÇö and connects the mathematical solver to a real-time IoT monitoring system.
 
 Instead of using manual route planning or blocking batch jobs, Waste-Wise implements:
-- **Dual CVRP solver** — custom Large Neighborhood Search (LNS) heuristic + Google OR-Tools integration
+- **Dual CVRP solver** ΓÇö custom Large Neighborhood Search (LNS) heuristic + Google OR-Tools integration
 - **Real-time IoT ingestion** from ESP32 sensors monitoring bin fill levels
 - **Event-driven rerouting** via Socket.IO for instant fleet adaptation
 - **Full auth system** with Firebase Authentication and Supabase persistence
@@ -29,7 +29,7 @@ Instead of using manual route planning or blocking batch jobs, Waste-Wise implem
 
 ---
 
-## 🔬 Research Context
+## ≡ƒö¼ Research Context
 
 | | |
 |---|---|
@@ -40,50 +40,50 @@ Instead of using manual route planning or blocking batch jobs, Waste-Wise implem
 
 ---
 
-## 🏗️ Architecture
+## ≡ƒÅù∩╕Å Architecture
 
 <div align="center">
 
-![Waste-Wise Architecture — Full-stack CVRP logistics with IoT and real-time dashboards](assets/architecture_diagram.png)
+![Waste-Wise Architecture ΓÇö Full-stack CVRP logistics with IoT and real-time dashboards](assets/architecture_diagram.png)
 
 </div>
 
 ### System Flow
 
 ```
-┌──────────────┐        ┌────────────────────────────────────┐
-│  ESP32 IoT   │───────▶│        NODE.JS BACKEND              │
-│  Sensors     │  data  │  ┌──────────────────────────────┐  │
-│  (bin fill)  │        │  │ Express Server (1000+ lines) │  │
-└──────────────┘        │  ├──────────────────────────────┤  │
-                        │  │ Socket.IO Real-Time Events   │  │
-                        │  ├──────────────────────────────┤  │
-                        │  │ Supabase (Persistence)       │  │
-                        │  ├──────────────────────────────┤  │
-                        │  │ Firebase Auth (Sessions)     │  │
-                        │  └──────────────────────────────┘  │
-                        └─────────┬──────────────┬───────────┘
-                                  │              │
-                    ┌─────────────▼──┐    ┌──────▼──────────┐
-                    │ ADMIN DASHBOARD │    │ DRIVER DASHBOARD │
-                    │ Fleet Mgmt     │    │ Leaflet Maps     │
-                    │ Route Assign   │    │ Collection Logs  │
-                    │ Bin Monitoring  │    │ Hazard Alerts    │
-                    └────────────────┘    └─────────────────┘
-                                  │
-                    ┌─────────────▼──────────────────┐
-                    │     PYTHON CVRP SOLVER          │
-                    │  ┌───────────┐  ┌────────────┐ │
-                    │  │ LNS       │  │ Google     │ │
-                    │  │ Heuristic │  │ OR-Tools   │ │
-                    │  └───────────┘  └────────────┘ │
-                    │  Mappls API ◄── Haversine       │
-                    └─────────────────────────────────┘
+ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ        ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+Γöé  ESP32 IoT   ΓöéΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓû╢Γöé        NODE.JS BACKEND              Γöé
+Γöé  Sensors     Γöé  data  Γöé  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ  Γöé
+Γöé  (bin fill)  Γöé        Γöé  Γöé Express Server (1000+ lines) Γöé  Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ        Γöé  Γö£ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ  Γöé
+                        Γöé  Γöé Socket.IO Real-Time Events   Γöé  Γöé
+                        Γöé  Γö£ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ  Γöé
+                        Γöé  Γöé Supabase (Persistence)       Γöé  Γöé
+                        Γöé  Γö£ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ  Γöé
+                        Γöé  Γöé Firebase Auth (Sessions)     Γöé  Γöé
+                        Γöé  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ  Γöé
+                        ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+                                  Γöé              Γöé
+                    ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓû╝ΓöÇΓöÇΓöÉ    ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓû╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+                    Γöé ADMIN DASHBOARD Γöé    Γöé DRIVER DASHBOARD Γöé
+                    Γöé Fleet Mgmt     Γöé    Γöé Leaflet Maps     Γöé
+                    Γöé Route Assign   Γöé    Γöé Collection Logs  Γöé
+                    Γöé Bin Monitoring  Γöé    Γöé Hazard Alerts    Γöé
+                    ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ    ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+                                  Γöé
+                    ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓû╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+                    Γöé     PYTHON CVRP SOLVER          Γöé
+                    Γöé  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ Γöé
+                    Γöé  Γöé LNS       Γöé  Γöé Google     Γöé Γöé
+                    Γöé  Γöé Heuristic Γöé  Γöé OR-Tools   Γöé Γöé
+                    Γöé  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ Γöé
+                    Γöé  Mappls API ΓùäΓöÇΓöÇ Haversine       Γöé
+                    ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
 ```
 
 ---
 
-## 🎯 Core Features
+## ≡ƒÄ» Core Features
 
 | Feature | Description |
 |---------|-------------|
@@ -97,40 +97,40 @@ Instead of using manual route planning or blocking batch jobs, Waste-Wise implem
 
 ---
 
-## 📂 Project Structure
+## ≡ƒôé Project Structure
 
 ```
 Waste-Wise/
-├── server.js              # Node.js Express backend (1000+ lines)
-├── app.js                 # App initialization
-├── cvrp_solver.py         # Python CVRP solver (LNS + OR-Tools)
-├── config.js              # Server configuration
-├── firebase-Config.js     # Firebase configuration
-├── firebase-auth.js       # Authentication logic
-├── firebase-config-unified.js  # Unified Firebase config
-├── login-auth.js          # Login authentication
-├── signup-auth.js         # Signup authentication
-├── dashboard.html         # Driver dashboard
-├── dashboard.js           # Dashboard logic
-├── dashboard.css          # Dashboard styles
-├── admindashboard.html    # Admin dashboard
-├── adminDashboard.js      # Admin dashboard logic
-├── admin.html             # Admin panel
-├── admin.js               # Admin logic
-├── binStatus.html         # Bin status monitor
-├── binstatus.js           # Bin status logic
-├── GaugeView.js           # Visual gauge components
-├── index.html             # Landing page
-├── login.html             # Login page
-├── signup.html            # Signup page
-├── Translate.js           # Multi-language support
-├── requirements.txt       # Python dependencies
-└── package.json           # Node.js dependencies
+Γö£ΓöÇΓöÇ server.js              # Node.js Express backend (1000+ lines)
+Γö£ΓöÇΓöÇ app.js                 # App initialization
+Γö£ΓöÇΓöÇ cvrp_solver.py         # Python CVRP solver (LNS + OR-Tools)
+Γö£ΓöÇΓöÇ config.js              # Server configuration
+Γö£ΓöÇΓöÇ firebase-Config.js     # Firebase configuration
+Γö£ΓöÇΓöÇ firebase-auth.js       # Authentication logic
+Γö£ΓöÇΓöÇ firebase-config-unified.js  # Unified Firebase config
+Γö£ΓöÇΓöÇ login-auth.js          # Login authentication
+Γö£ΓöÇΓöÇ signup-auth.js         # Signup authentication
+Γö£ΓöÇΓöÇ dashboard.html         # Driver dashboard
+Γö£ΓöÇΓöÇ dashboard.js           # Dashboard logic
+Γö£ΓöÇΓöÇ dashboard.css          # Dashboard styles
+Γö£ΓöÇΓöÇ admindashboard.html    # Admin dashboard
+Γö£ΓöÇΓöÇ adminDashboard.js      # Admin dashboard logic
+Γö£ΓöÇΓöÇ admin.html             # Admin panel
+Γö£ΓöÇΓöÇ admin.js               # Admin logic
+Γö£ΓöÇΓöÇ binStatus.html         # Bin status monitor
+Γö£ΓöÇΓöÇ binstatus.js           # Bin status logic
+Γö£ΓöÇΓöÇ GaugeView.js           # Visual gauge components
+Γö£ΓöÇΓöÇ index.html             # Landing page
+Γö£ΓöÇΓöÇ login.html             # Login page
+Γö£ΓöÇΓöÇ signup.html            # Signup page
+Γö£ΓöÇΓöÇ Translate.js           # Multi-language support
+Γö£ΓöÇΓöÇ requirements.txt       # Python dependencies
+ΓööΓöÇΓöÇ package.json           # Node.js dependencies
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## ≡ƒ¢á∩╕Å Tech Stack
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
@@ -144,7 +144,7 @@ Waste-Wise/
 
 ---
 
-## 🚀 Quick Start
+## ≡ƒÜÇ Quick Start
 
 ### Prerequisites
 - **Node.js** 18+
@@ -176,7 +176,44 @@ Then open `http://localhost:3000` in your browser.
 
 ---
 
-## 📝 License
+---
+
+## API Summary
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/health` | Health check |
+| GET | `/api/config` | Public Firebase config |
+| POST | `/sessionLogin` `{idToken}` | Create `ww_session` cookie |
+| GET | `/sessionLogout` | Clear session |
+| POST | `/updateBin` `{id,fullness,weight,temp,...}` | ESP32 ingest ΓåÆ emits `binData`, `fullnessAlert`, `rerouteSuggestion` |
+| GET | `/bins`, `/bins/:id`, POST `/bins` | Bin CRUD (Supabase + memory fallback) |
+| GET | `/nearby-bins?lat&lng&r` | BBOX query (unified endpoint) |
+| POST | `/assign-route` `{driverId,bins,startLocation}` | Create route ΓåÆ `routeAssigned` |
+| GET | `/driver/:id/route` | Active route |
+| POST | `/driver/:id/location` `{lat,lng}` | Tracking ΓåÆ `driverLocation` |
+| POST | `/route/:id/collect` `{binId,driverId}` | Collection ΓåÆ `binCollected` |
+| POST | `/optimize-route` / `/api/optimize-routes` | Heuristic optimizer |
+| POST | `/api/cvrp` | Python LNS/OR-Tools solver (with JS fallback) |
+| GET | `/alerts?type&binId` | Alert history |
+| POST | `/provision`, GET `/provision/:binId`, POST `/provision/:binId/ack` | ESP32 provisioning |
+| POST | `/devices/register` | FCM token store |
+
+## Frontend Routes
+
+- `/index.html` ΓåÆ role gate (Admin ΓåÆ `adminlogin.html` or inline Firebase; Driver ΓåÆ `login.html`)
+- `/login.html` ΓåÆ `login-auth.js:1` (Firebase + `ww_session`)
+- `/dashboard.html` ΓåÆ driver map + Smart Route (`dashboard.js:1`)
+- `/binStatus.html?binId=xyz` ΓåÆ gauges + live socket (`binstatus.js:1`)
+- `/admindashboard.html` ΓåÆ admin fleet (`adminEnhanced.js:1`)
+- `/admin.html` ΓåÆ alternative admin portal (`admin.js:1`)
+- `/adminlogin.html` ΓåÆ demo + Firebase fallback (`adminlogin.js:1`)
+
+## Environment
+
+See `.env.example` ΓÇö all `FIREBASE_*` exposed via `/api/config`. `SUPABASE_URL/KEY` server-only but also used client-side for direct queries (anon key). Missing Supabase gracefully falls back to in-memory stores (alerts, bins, routes) so the app remains demoable offline.
+
+## ≡ƒô¥ License
 
 Research & Educational Use
 
@@ -188,6 +225,6 @@ Research & Educational Use
 
 *17-year-old self-taught systems engineer | India*
 
-[LinkedIn](https://www.linkedin.com/in/chahat-jain-20873b377) · [GitHub](https://github.com/chahat1709) · [Email](mailto:chahatjain0-96@gmail.com)
+[LinkedIn](https://www.linkedin.com/in/chahat-jain-20873b377) ┬╖ [GitHub](https://github.com/chahat1709) ┬╖ [Email](mailto:chahatjain0-96@gmail.com)
 
 </div>

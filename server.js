@@ -9,14 +9,17 @@ const { config } = require("./config");
 const crypto = require("crypto");
 const { createClient } = require('@supabase/supabase-js');
 const admin = require('firebase-admin');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 
 const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-// Security middleware
-app.use(helmet());
+// Security middleware - relaxed CSP for frontend CDN usage (Leaflet, Chart.js, Firebase, Socket.IO)
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true); // allow non-browser requests
@@ -41,7 +44,9 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limit each IP to 100 requests per windowMs
+    max: Number(process.env.RATE_LIMIT_MAX) || 100, // limit each IP to max requests per windowMs (configurable)
+    standardHeaders: true,
+    legacyHeaders: false
 });
 app.use(limiter);
 
@@ -76,9 +81,23 @@ app.use(express.json());
 // parse cookies for session handling
 app.use(cookieParser());
 
-// Serve frontend static files from project root so frontend and backend are same-origin in prod
+// Serve frontend static files from project root so frontend and backend are same-origin in prod.
+// NOTE: project root also holds secrets (.env), history (.git), deps (node_modules) and the
+// Python solver — none of which must ever be downloadable. Deny them before static serving.
 const staticDir = path.join(__dirname);
-app.use(express.static(staticDir));
+const BLOCKED_STATIC = ['.env', '.env.example', '.git', 'node_modules', '.venv', '__pycache__'];
+app.use((req, res, next) => {
+  const p = decodeURIComponent(req.path);
+  if (BLOCKED_STATIC.some(b => p === `/${b}` || p.startsWith(`/${b}/`)) ||
+      p.endsWith('.py') || p.endsWith('.log') || p.endsWith('.sqlite')) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+});
+// Legacy duplicate admin portal — single source of truth is admindashboard.html.
+// Must sit BEFORE static serving, otherwise express.static answers /admin.html itself.
+app.get('/admin.html', (req, res) => res.redirect(302, '/admindashboard.html'));
+app.use(express.static(staticDir, { dotfiles: 'deny', index: 'index.html' }));
 
 // Endpoint to expose public client-side configuration
 app.get('/api/config', (req, res) => {
@@ -162,10 +181,24 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-// Initialize Supabase client (server-side)
+// Initialize Supabase client (server-side) - with graceful fallback if not configured
 const SUPABASE_URL = process.env.SUPABASE_URL || (config && config.privateConfig && config.privateConfig.SUPABASE_URL);
 const SUPABASE_KEY = process.env.SUPABASE_KEY || (config && config.privateConfig && config.privateConfig.SUPABASE_KEY);
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+let supabase;
+let supabaseAvailable = false;
+try {
+  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Supabase not configured');
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  supabaseAvailable = true;
+  console.log('Supabase client initialized');
+} catch (e) {
+  console.warn('Supabase init failed, using in-memory fallback:', e.message);
+  // Any DB access throws immediately. Every route already try/catches DB calls
+  // and falls back to the in-memory stores below, so the app stays demoable.
+  supabase = new Proxy({}, {
+    get: () => () => { throw new Error('Supabase not configured'); }
+  });
+}
 
 const FULLNESS_ALERT_THRESHOLD = parseInt(process.env.FULLNESS_ALERT_THRESHOLD || '80', 10);
 
@@ -177,6 +210,7 @@ let _inMemoryRoutes = []; // { id, driverId, bins, startLocation, dumpyard, stat
 let _inMemoryDriverLocations = {}; // driverId -> { driverId, lat, lng, bearing, updatedAt }
 let _inMemoryCollections = []; // collection records
 let _inMemoryAlerts = []; // stored alerts for UI fallback
+let _inMemoryComplaints = []; // citizen complaints: { id, binId, type, note, lat, lng, reporter, status, createdAt }
 let _inMemoryDeviceTokens = {}; // driverId -> [ { token, platform, createdAt } ]
 const FIRE_TEMP_THRESHOLD = parseInt(process.env.FIRE_TEMP_THRESHOLD || '60', 10);
 
@@ -350,13 +384,18 @@ app.post("/updateBin", (req, res) => {
         const tempVal = typeof bins[binId].temperature !== 'undefined' && bins[binId].temperature !== null ? Number(bins[binId].temperature) : null;
         const status = bins[binId].status || null;
 
-        // Fullness threshold alert (general)
+        // Fullness threshold alert (general) - Event-driven reroute trigger
         if (newFullness !== null && newFullness >= FULLNESS_ALERT_THRESHOLD && (prevFullness === null || prevFullness < FULLNESS_ALERT_THRESHOLD)) {
           const alertPayload = { type: 'fullness', bin: bins[binId], threshold: FULLNESS_ALERT_THRESHOLD, createdAt: new Date().toISOString() };
           _inMemoryAlerts.push(alertPayload);
           io.to('routes').emit('fullnessAlert', alertPayload);
           io.emit('fullnessAlert', alertPayload);
           console.log('Emitted fullnessAlert for bin', binId, 'fullness', newFullness);
+          // Event-driven rerouting: notify all clients that this bin needs urgent collection - triggers LNS recomputation on client or admin
+          const rerouteSuggestion = { type: 'rerouteSuggestion', bin: bins[binId], reason: 'fullness_threshold', priority: newFullness >= 90 ? 'high' : 'medium', createdAt: new Date().toISOString() };
+          io.to('routes').emit('rerouteSuggestion', rerouteSuggestion);
+          io.emit('rerouteSuggestion', rerouteSuggestion);
+          console.log('Emitted rerouteSuggestion for bin', binId);
           try {
             await supabase.from('alerts').insert([{ binId, type: 'fullness', message: `Bin ${binId} reached ${newFullness}%`, createdAt: new Date().toISOString() }]);
           } catch (insertErr) { console.warn('Failed to insert alert record:', insertErr && insertErr.message ? insertErr.message : insertErr); }
@@ -408,44 +447,87 @@ app.post("/updateBin", (req, res) => {
       return res.json({ ok: true, bin: bins[binId] });
     } catch (err) {
       console.warn('Supabase upsert failed, falling back to in-memory store:', err.message || err);
-      // Fallback to in-memory store
+      // Fallback to in-memory store - still emit alerts via same logic
+      const prev = bins[binId] || null;
       bins[binId] = binPayload;
       io.to(`bin:${binId}`).emit('binData', bins[binId]);
       io.to('routes').emit('binUpdate', bins[binId]);
+      // Run same alert checks as success path (in-memory only)
+      try {
+        const prevFullness = prev && typeof prev.fullness !== 'undefined' ? Number(prev.fullness) : null;
+        const newFullness = typeof bins[binId].fullness !== 'undefined' ? Number(bins[binId].fullness) : null;
+        const weightVal = typeof bins[binId].weight !== 'undefined' ? Number(bins[binId].weight) : 0;
+        const tempVal = typeof bins[binId].temperature !== 'undefined' && bins[binId].temperature !== null ? Number(bins[binId].temperature) : null;
+        const status = bins[binId].status || null;
+        if (newFullness !== null && newFullness >= FULLNESS_ALERT_THRESHOLD && (prevFullness === null || prevFullness < FULLNESS_ALERT_THRESHOLD)) {
+          const alertPayload = { type: 'fullness', bin: bins[binId], threshold: FULLNESS_ALERT_THRESHOLD, createdAt: new Date().toISOString() };
+          _inMemoryAlerts.push(alertPayload);
+          io.to('routes').emit('fullnessAlert', alertPayload);
+          io.emit('fullnessAlert', alertPayload);
+          const rerouteSuggestion = { type: 'rerouteSuggestion', bin: bins[binId], reason: 'fullness_threshold', priority: newFullness >= 90 ? 'high' : 'medium', createdAt: new Date().toISOString() };
+          io.to('routes').emit('rerouteSuggestion', rerouteSuggestion);
+          io.emit('rerouteSuggestion', rerouteSuggestion);
+          console.log('Emitted fullnessAlert (fallback) for bin', binId);
+        }
+        if (newFullness !== null && newFullness >= FULLNESS_ALERT_THRESHOLD && weightVal > 12) {
+          const wf = { type: 'weightedFullness', bin: bins[binId], weight: weightVal, threshold: FULLNESS_ALERT_THRESHOLD, createdAt: new Date().toISOString() };
+          _inMemoryAlerts.push(wf);
+          io.to('routes').emit('weightedFullnessAlert', wf);
+          console.log('Emitted weightedFullnessAlert (fallback) for bin', binId);
+        }
+        const isTempHazard = tempVal !== null && tempVal >= FIRE_TEMP_THRESHOLD;
+        const isStatusHazard = status && (status === 'on_fire' || status === 'hazard' || status === 'chemical');
+        if (isTempHazard || isStatusHazard) {
+          const hazard = { type: 'hazard', bin: bins[binId], reason: isTempHazard ? 'high_temperature' : 'status', temp: tempVal, createdAt: new Date().toISOString() };
+          _inMemoryAlerts.push(hazard);
+          io.to('routes').emit('hazardAlert', hazard);
+          io.emit('hazardAlert', hazard);
+          console.log('Emitted hazardAlert (fallback) for bin', binId);
+        }
+      } catch (checkErr) { console.warn('Fallback alert check failed', checkErr.message); }
       return res.status(200).json({ ok: true, bin: bins[binId], warning: 'db-fallback' });
     }
   })();
 });
 
-// Upsert a bin (safe insert/update) via API — server-side uses service key
+// Upsert a bin (safe insert/update) via API — server-side uses service key, with in-memory fallback
 app.post('/bins', async (req, res) => {
   const bin = req.body;
   if (!bin || !bin.id) return res.status(400).json({ error: 'id required' });
   try {
     const { data, error } = await supabase.from('bins').upsert(bin, { onConflict: 'id' }).select().single();
     if (error) throw error;
-    // Update in-memory cache and emit
     bins[bin.id] = data;
     io.to(`bin:${bin.id}`).emit('binData', data);
     io.to('routes').emit('binUpdate', data);
     res.json({ ok: true, bin: data });
   } catch (err) {
-    console.error('Upsert /bins error:', err.message || err);
-    res.status(500).json({ error: err.message || 'Internal error' });
+    console.warn('Upsert /bins DB failed, fallback to memory:', err.message || err);
+    bins[bin.id] = { ...bin, updated_at: new Date().toISOString() };
+    io.to(`bin:${bin.id}`).emit('binData', bins[bin.id]);
+    io.to('routes').emit('binUpdate', bins[bin.id]);
+    res.json({ ok: true, bin: bins[bin.id], warning: 'db-fallback' });
   }
 });
 
-// Get bin by id
+// Get bin by id - with in-memory fallback
 app.get('/bins/:id', async (req, res) => {
   const id = req.params.id;
+  // fast path: check memory first (covers db-fallback bins)
+  if (bins[id]) {
+    try {
+      const { data, error } = await supabase.from('bins').select('*').eq('id', id).single();
+      if (!error && data) return res.json({ bin: data });
+    } catch (e) { /* ignore db error, return memory */ }
+    return res.json({ bin: bins[id], source: 'memory' });
+  }
   try {
     const { data, error } = await supabase.from('bins').select('*').eq('id', id).single();
     if (error && error.code !== 'PGRST116') throw error;
     if (data) return res.json({ bin: data });
-    // fallback to in-memory
-    if (bins[id]) return res.json({ bin: bins[id], source: 'memory' });
     return res.status(404).json({ error: 'not found' });
   } catch (err) {
+    if (bins[id]) return res.json({ bin: bins[id], source: 'memory' });
     console.error('Get bin error:', err.message || err);
     res.status(500).json({ error: err.message || 'Internal error' });
   }
@@ -470,73 +552,38 @@ app.get('/bins', async (req, res) => {
   }
 });
 
-// Nearby bins endpoint: ?lat=..&lng=..&r=meters
+// Unified nearby-bins endpoint: ?lat=..&lng=..&r=meters (hides Supabase anon key)
 app.get('/nearby-bins', async (req, res) => {
   const lat = parseFloat(req.query.lat);
   const lng = parseFloat(req.query.lng);
-  const radiusMeters = parseInt(req.query.r || '5000', 10);
-  if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ error: 'lat and lng required' });
+  const radiusMeters = parseInt(req.query.r || req.query.radius || '5000', 10);
   try {
-    const degRadius = radiusMeters / 111000;
-    const latMin = lat - degRadius;
-    const latMax = lat + degRadius;
-    const lngMin = lng - degRadius;
-    const lngMax = lng + degRadius;
-    try {
-      const { data, error } = await supabase.from('bins').select('id, lat, lng, fullness, status, weight, temperature').gte('lat', latMin).lte('lat', latMax).gte('lng', lngMin).lte('lng', lngMax);
-      if (error) throw error;
-      return res.json({ bins: data || [] });
-    } catch (dbErr) {
-      // fallback to in-memory filter
-      const all = Object.values(bins || {});
-      const nearby = all.filter(b => typeof b.lat === 'number' && typeof b.lng === 'number' && b.lat >= latMin && b.lat <= latMax && b.lng >= lngMin && b.lng <= lngMax);
-      return res.json({ bins: nearby });
-    }
-  } catch (err) {
-    console.error('nearby-bins error', err);
-    res.status(500).json({ error: err.message || 'Internal error' });
-  }
-});
-
-// Nearby bins endpoint - server-side query to Supabase (hides anon key)
-// Query: /nearby-bins?lat=12.34&lng=56.78&r=3000
-app.get('/nearby-bins', async (req, res) => {
-  const lat = parseFloat(req.query.lat);
-  const lng = parseFloat(req.query.lng);
-  const radius = parseFloat(req.query.r) || 5000; // meters
-  try {
-    // If lat/lng provided, use bounding box approximation
     if (!isNaN(lat) && !isNaN(lng)) {
-      const degRadius = radius / 111000;
+      const degRadius = radiusMeters / 111000;
       const latMin = lat - degRadius;
       const latMax = lat + degRadius;
       const lngMin = lng - degRadius;
       const lngMax = lng + degRadius;
       try {
-        const { data, error } = await supabase.from('bins').select('id, lat, lng, fullness, status, temperature, weight').gte('lat', latMin).lte('lat', latMax).gte('lng', lngMin).lte('lng', lngMax);
+        const { data, error } = await supabase.from('bins').select('id, lat, lng, fullness, status, weight, temperature, location').gte('lat', latMin).lte('lat', latMax).gte('lng', lngMin).lte('lng', lngMax);
         if (error) throw error;
         return res.json({ bins: data || [] });
       } catch (dbErr) {
-        // fallback to in-memory filter
-        const results = Object.values(bins).filter(b => {
-          if (typeof b.lat !== 'number' || typeof b.lng !== 'number') return false;
-          return b.lat >= latMin && b.lat <= latMax && b.lng >= lngMin && b.lng <= lngMax;
-        });
-        return res.json({ bins: results });
+        const all = Object.values(bins || {});
+        const nearby = all.filter(b => typeof b.lat === 'number' && typeof b.lng === 'number' && b.lat >= latMin && b.lat <= latMax && b.lng >= lngMin && b.lng <= lngMax);
+        return res.json({ bins: nearby });
       }
     }
-
-    // No lat/lng: return a limited set of bins
+    // No lat/lng: return limited set
     try {
-      const { data, error } = await supabase.from('bins').select('id, lat, lng, fullness, status, temperature, weight').limit(200);
+      const { data, error } = await supabase.from('bins').select('id, lat, lng, fullness, status, weight, temperature, location').limit(200);
       if (error) throw error;
       return res.json({ bins: data || [] });
     } catch (dbErr) {
-      // fallback to in-memory
       return res.json({ bins: Object.values(bins).slice(0, 200) });
     }
   } catch (err) {
-    console.error('nearby-bins error:', err && err.message ? err.message : err);
+    console.error('nearby-bins error', err && err.message ? err.message : err);
     res.status(500).json({ error: err && err.message ? err.message : 'Internal error' });
   }
 });
@@ -780,6 +827,112 @@ app.get('/alerts', async (req, res) => {
   }
 });
 
+// --- Citizen complaints (Swachh grievance loop) ---
+// Types: overflow | missed_pickup | burning | segregation | damaged_bin | other
+const COMPLAINT_TYPES = ['overflow', 'missed_pickup', 'burning', 'segregation', 'damaged_bin', 'other'];
+
+// Citizen files a complaint. Body: { binId?, type, note?, lat?, lng?, reporter? }
+app.post('/complaints', async (req, res) => {
+  const { binId, type, note, lat, lng, reporter } = req.body || {};
+  if (!type || COMPLAINT_TYPES.indexOf(type) === -1) {
+    return res.status(400).json({ error: `type required, one of: ${COMPLAINT_TYPES.join(', ')}` });
+  }
+  const complaint = {
+    id: crypto.randomUUID(),
+    binId: binId || null,
+    type,
+    note: (note || '').slice(0, 500),
+    lat: (lat !== undefined && lat !== null) ? Number(lat) : null,
+    lng: (lng !== undefined && lng !== null) ? Number(lng) : null,
+    reporter: reporter || 'citizen',
+    status: 'open',
+    createdAt: new Date().toISOString()
+  };
+  try {
+    const { data, error } = await supabase.from('complaints').insert([complaint]).select().single();
+    if (error) throw error;
+    _inMemoryComplaints.push(data);
+    emitComplaint(data);
+    return res.json({ ok: true, complaint: data });
+  } catch (dbErr) {
+    _inMemoryComplaints.push(complaint);
+    emitComplaint(complaint);
+    return res.json({ ok: true, complaint, warning: 'db-fallback' });
+  }
+});
+
+function emitComplaint(complaint) {
+  io.to('routes').emit('complaintFiled', complaint);
+  io.emit('complaintFiled', complaint);
+  // Target the assigned driver too, so the bin lands on someone's route today
+  if (complaint.binId) {
+    findAssignedRouteForBin(complaint.binId).then(assigned => {
+      if (assigned && assigned.driverId) {
+        io.to(`driver:${assigned.driverId}`).emit('complaintFiled', complaint);
+      }
+    }).catch(() => {});
+  }
+  console.log('Emitted complaintFiled', complaint.id, complaint.type, complaint.binId || '');
+}
+
+// List complaints: ?status=open|resolved&binId=&type=&since=
+app.get('/complaints', async (req, res) => {
+  const { status, binId, type, since } = req.query;
+  const applyFilters = (list) => {
+    let r = Array.from(list);
+    if (status) r = r.filter(c => c.status === status);
+    if (binId) r = r.filter(c => c.binId === binId);
+    if (type) r = r.filter(c => c.type === type);
+    if (since) r = r.filter(c => new Date(c.createdAt) >= new Date(since));
+    return r.reverse();
+  };
+  try {
+    const { data, error } = await supabase.from('complaints').select('*').order('createdAt', { ascending: false }).limit(1000);
+    if (!error && Array.isArray(data) && (data.length > 0 || _inMemoryComplaints.length === 0)) {
+      return res.json({ complaints: applyFilters(data) });
+    }
+  } catch (dbErr) { /* fallback below */ }
+  res.json({ complaints: applyFilters(_inMemoryComplaints) });
+});
+
+// Admin resolves a complaint. Body: { status: 'resolved', resolution? }
+app.post('/complaints/:id/resolve', async (req, res) => {
+  const id = req.params.id;
+  const { status, resolution } = req.body || {};
+  if (status !== 'resolved') return res.status(400).json({ error: "status must be 'resolved'" });
+  const rec = _inMemoryComplaints.find(c => c.id === id);
+  if (rec) {
+    rec.status = 'resolved';
+    rec.resolution = (resolution || '').slice(0, 500);
+    rec.resolvedAt = new Date().toISOString();
+  }
+  try {
+    await supabase.from('complaints').upsert(
+      { id, status: 'resolved', resolution: resolution || null, resolvedAt: new Date().toISOString() },
+      { onConflict: 'id' }
+    );
+  } catch (dbErr) { /* memory is source of truth in fallback */ }
+  if (!rec) return res.status(404).json({ error: 'not found' });
+  const payload = { ...rec };
+  io.to('routes').emit('complaintResolved', payload);
+  io.emit('complaintResolved', payload);
+  res.json({ ok: true, complaint: rec });
+});
+
+// Citizen Swachh score: reports filed + resolved share (lightweight gamification)
+app.get('/citizen/:name/score', (req, res) => {
+  const name = req.params.name;
+  const mine = _inMemoryComplaints.filter(c => c.reporter === name);
+  const resolved = mine.filter(c => c.status === 'resolved').length;
+  res.json({
+    reporter: name,
+    reports: mine.length,
+    resolved,
+    points: mine.length * 10 + resolved * 20,
+    level: resolved >= 5 ? 'Swachh Champion' : resolved >= 2 ? 'Swachh Warrior' : mine.length > 0 ? 'Swachh Starter' : 'New Citizen'
+  });
+});
+
 // Very small heuristic CVRP optimizer: chunk bins into routes of up to capacity and optionally assign to drivers
 app.post('/optimize-route', async (req, res) => {
   const { bins: inputBins, drivers, vehicleCapacity } = req.body;
@@ -872,62 +1025,83 @@ app.post('/optimize-route', async (req, res) => {
     res.status(500).json({ error: err && err.message ? err.message : 'Internal error' });
   }
 });
-
-// CVRP API endpoint: accepts POST JSON and returns solver JSON
-app.post('/api/cvrp', (req, res) => {
-  const inputData = req.body || {};
-  // Add Mappls API key to the payload if it exists in the environment
-  if (process.env.MAPPLS_API_KEY) {
-    inputData.mappls_api_key = process.env.MAPPLS_API_KEY;
+// Alias for admin dashboard compatibility (expects /api/optimize-routes).
+// bins-payloads run the exact same heuristic as /optimize-route (307 preserves
+// POST method + body on redirect); solver-payloads share runPythonSolver with /api/cvrp.
+app.post('/api/optimize-routes', async (req, res) => {
+  const { bins: inputBins, locations, demands, vehicle_capacities, vehicleCapacity, num_vehicles, depot } = req.body || {};
+  if (Array.isArray(inputBins) && inputBins.length > 0) {
+    return res.redirect(307, '/optimize-route');
   }
-  try {
-    const PYTHON_CMD = process.env.PYTHON_CMD || 'python';
-    const python = require('child_process').spawn(PYTHON_CMD, ['cvrp_solver.py'], { cwd: __dirname });
-    const payload = JSON.stringify(inputData);
+  if (Array.isArray(locations) && locations.length > 0) {
+    const payload = { locations, demands, vehicle_capacities: vehicle_capacities || (vehicleCapacity ? [vehicleCapacity] : undefined), num_vehicles, depot };
+    if (process.env.MAPPLS_API_KEY) payload.mappls_api_key = process.env.MAPPLS_API_KEY;
+    const result = await runPythonSolver(payload);
+    if (result && result.error && !result.routes) return res.status(500).json(result);
+    return res.json(result);
+  }
+  return res.status(400).json({ error: 'bins or locations required' });
+});
+
+// Runs the Python CVRP solver (OR-Tools -> LNS -> Haversine chain) with JS fallback.
+// Single place where the solver subprocess is spawned; shared by /api/cvrp and
+// /api/optimize-routes so the two endpoints can never drift apart.
+function runPythonSolver(payload) {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      const PYTHON_CMD = process.env.PYTHON_CMD || 'python';
+      child = spawn(PYTHON_CMD, ['cvrp_solver.py'], { cwd: __dirname });
+    } catch (err) {
+      console.error('solver spawn error', err && err.message ? err.message : err);
+      try { return resolve(jsFallbackCVRPSolve(payload)); }
+      catch (je) { return resolve({ error: 'Solver error', details: je && je.message ? je.message : je }); }
+    }
     let stdout = '';
     let stderr = '';
-
-    // Collect stdout
-    python.stdout.on('data', (data) => { stdout += data.toString(); });
-    python.stderr.on('data', (data) => { stderr += data.toString(); });
-
-    // On process close, parse JSON and respond; fallback to JS solver on errors
-    python.on('close', (code) => {
-      if (stderr && stderr.trim().length > 0) {
-        console.error('/api/cvrp python stderr:', stderr);
-      }
-        try {
-          const parsed = JSON.parse(stdout);
-          // If python returned an error object, treat as failure and fallback
-          if (parsed && typeof parsed === 'object' && parsed.error) {
-            console.warn('/api/cvrp python solver returned error, falling back to JS solver:', parsed.error);
-            const jsResult = jsFallbackCVRPSolve(inputData);
-            return res.json(jsResult);
-          }
-          return res.json(parsed);
-        } catch (e) {
-          console.warn('/api/cvrp python solver failed or returned non-JSON, falling back to JS solver', e && e.message ? e.message : e);
-          try {
-            const jsResult = jsFallbackCVRPSolve(inputData);
-            return res.json(jsResult);
-          } catch (je) {
-            console.error('/api/cvrp js fallback also failed', je && je.message ? je.message : je);
-            return res.status(500).json({ error: 'Solver error', details: je && je.message ? je.message : je, raw: stdout, stderr });
-          }
+    child.stdout.on('data', (d) => { stdout += d.toString(); });
+    child.stderr.on('data', (d) => { stderr += d.toString(); });
+    child.on('close', () => {
+      if (stderr && stderr.trim().length > 0) console.error('solver python stderr:', stderr);
+      try {
+        const parsed = JSON.parse(stdout);
+        // If python returned an error object, treat as failure and fallback
+        if (parsed && typeof parsed === 'object' && parsed.error) {
+          console.warn('python solver returned error, falling back to JS solver:', parsed.error);
+          return resolve(jsFallbackCVRPSolve(payload));
         }
+        return resolve(parsed);
+      } catch (e) {
+        console.warn('python solver failed or returned non-JSON, falling back to JS solver', e && e.message ? e.message : e);
+        try { return resolve(jsFallbackCVRPSolve(payload)); }
+        catch (je) { return resolve({ error: 'Solver error', details: je && je.message ? je.message : je }); }
+      }
     });
-
-    // Write payload and close stdin
-    python.stdin.write(payload);
-    python.stdin.end();
-
+    try {
+      child.stdin.write(JSON.stringify(payload));
+      child.stdin.end();
+    } catch (err) {
+      console.error('solver stdin error', err && err.message ? err.message : err);
+    }
     // Safety timeout: kill python if it runs too long (30s)
-    setTimeout(() => {
-      try { python.kill('SIGKILL'); } catch (e) {}
-    }, 30 * 1000);
+    setTimeout(() => { try { child.kill('SIGKILL'); } catch (e) {} }, 30 * 1000);
+  });
+}
+
+// CVRP API endpoint: accepts POST JSON and returns solver JSON
+app.post('/api/cvrp', async (req, res) => {
+  try {
+    const inputData = req.body || {};
+    // Add Mappls API key to the payload if it exists in the environment
+    if (process.env.MAPPLS_API_KEY) {
+      inputData.mappls_api_key = process.env.MAPPLS_API_KEY;
+    }
+    const result = await runPythonSolver(inputData);
+    if (result && result.error && !result.routes) return res.status(500).json(result);
+    res.json(result);
   } catch (err) {
-    console.error('/api/cvrp spawn error', err && err.message ? err.message : err);
-    res.status(500).json({ error: 'Failed to start solver' });
+    console.error('/api/cvrp error', err && err.message ? err.message : err);
+    res.status(500).json({ error: 'Failed to run solver' });
   }
 });
 
@@ -1013,6 +1187,7 @@ function jsFallbackCVRPSolve(payload) {
   return { routes, total_distance };
 }
 
-server.listen(5000, () => {
-  console.log("Server running on port 5000");
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

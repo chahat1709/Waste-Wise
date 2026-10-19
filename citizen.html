@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Citizen — Waste Wise</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+  body{ background:var(--color-paper-100); max-width:640px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column}
+  .bar{ background:var(--color-ink-950); color:#fff; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; border-bottom:4px solid var(--color-acid-400); position:sticky; top:0; z-index:10}
+  .bar b{ font-family:var(--font-mono); font-size:12px; letter-spacing:.14em}
+  .bar b span{ color:var(--color-acid-400)}
+  .lang{ display:flex; border:1px solid #2a2a2a; border-radius:999px; overflow:hidden}
+  .lang button{ font-family:var(--font-mono); font-size:11px; padding:7px 12px; background:transparent; color:#bdbdbd; border:none; cursor:pointer; min-height:44px}
+  .lang button.on{ background:var(--color-acid-400); color:var(--color-ink-950); font-weight:700}
+  .wrap{ padding:16px 14px 90px; display:flex; flex-direction:column; gap:14px}
+  .hero{ background:var(--color-ink-950); color:#fff; border-radius:16px; padding:20px 18px; position:relative; overflow:hidden}
+  .hero h1{ font-family:var(--font-serif); font-size:30px; line-height:1; letter-spacing:-.03em}
+  .hero h1 span{ color:var(--color-acid-400)}
+  .hero p{ font-family:var(--font-mono); font-size:11px; color:#a8b5b0; margin-top:8px; line-height:1.6}
+  .card{ background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:16px; box-shadow:var(--shadow-sm)}
+  .card h2{ font-family:var(--font-mono); font-size:11px; letter-spacing:.14em; color:var(--color-slate-600); margin-bottom:10px}
+  .binrow{ display:flex; align-items:center; gap:12px; padding:12px 4px; border-top:1px solid var(--color-border); min-height:44px}
+  .binrow:first-of-type{ border-top:none}
+  .sdot{ width:12px; height:12px; border-radius:50%; flex:none}
+  .sdot.g{ background:var(--color-moss-600)} .sdot.y{ background:var(--color-amber-500)} .sdot.o{ background:#ff7a00} .sdot.r{ background:var(--color-hazard-500)}
+  .bininfo{ flex:1; min-width:0}
+  .bininfo b{ font-family:var(--font-mono); font-size:12px; display:block}
+  .bininfo span{ font-family:var(--font-mono); font-size:11px; color:var(--color-slate-600)}
+  .rep{ font-family:var(--font-mono); font-size:11px; padding:10px 12px; border-radius:999px; border:1.5px solid var(--color-ink-950); background:#fff; cursor:pointer; min-height:44px}
+  .rep:hover{ background:var(--color-ink-950); color:var(--color-acid-400)}
+  .seg{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
+  .seg div{ border-radius:12px; padding:12px 10px; color:#fff; font-family:var(--font-mono)}
+  .seg b{ font-size:11px; letter-spacing:.08em; display:block}
+  .seg span{ font-size:10px; opacity:.9; line-height:1.5; display:block; margin-top:4px}
+  .seg .wet{ background:var(--color-moss-600)} .seg .dry{ background:#1d4ed8} .seg .haz{ background:var(--color-hazard-500)}
+  .score{ display:flex; gap:14px; align-items:center}
+  .score .pts{ font-family:var(--font-mono); font-size:28px; font-weight:700}
+  .score small{ font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; color:var(--color-slate-600); display:block}
+  .score input{ flex:1; padding:10px 12px; border:1.5px solid var(--color-border); border-radius:10px; font-family:var(--font-mono); font-size:12px; background:var(--color-paper-50); min-height:44px}
+  .sheet{ position:fixed; inset:auto 0 0 0; max-width:640px; margin:0 auto; background:#fff; border-top:1.5px solid var(--color-line); border-radius:20px 20px 0 0; padding:20px 18px 28px; z-index:60; display:none; box-shadow:0 -12px 40px rgba(0,0,0,.18)}
+  .sheet.show{ display:block}
+  .sheet h3{ font-family:var(--font-display); font-size:16px}
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+  .chips button{ font-family:var(--font-mono); font-size:11px; padding:10px 12px; border-radius:999px; border:1.5px solid var(--color-border); background:#fff; cursor:pointer; min-height:44px}
+  .chips button.on{ border-color:var(--color-ink-950); background:var(--color-ink-950); color:var(--color-acid-400)}
+  .sheet textarea, .sheet input{ width:100%; margin-top:10px; padding:12px; border:1.5px solid var(--color-border); border-radius:12px; font-family:var(--font-mono); font-size:12px; background:var(--color-paper-50)}
+  .go{ width:100%; margin-top:12px; padding:14px; border-radius:999px; border:1.5px solid var(--color-ink-950); background:var(--color-ink-950); color:var(--color-acid-400); font-family:var(--font-mono); font-size:12px; letter-spacing:.1em; font-weight:700; cursor:pointer; min-height:48px}
+  .mine li{ font-family:var(--font-mono); font-size:11px; padding:10px 4px; border-top:1px solid var(--color-border); list-style:none; line-height:1.6}
+  .mine{ padding:0; margin:0}
+  .pill{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; margin-left:6px}
+  .pill.open{ background:#fef3c7; color:#92400e} .pill.resolved{ background:#dcfce7; color:#166534}
+  .foot{ text-align:center; font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; color:var(--color-slate-500); padding:16px}
+  .scrim{ position:fixed; inset:0; background:rgba(11,26,19,.45); z-index:50; display:none}
+  .scrim.show{ display:block}
+  #toast{ position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--color-ink-950); color:var(--color-acid-400); font-family:var(--font-mono); font-size:11px; padding:12px 16px; border-radius:12px; display:none; z-index:70; width:max-content; max-width:90vw}
+  #toast.show{ display:block}
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>WASTE WISE <span>CITIZEN</span></b>
+  <div class="lang" role="group" aria-label="Language">
+    <button id="langEn" class="on">EN</button>
+    <button id="langHi">हिं</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="hero">
+    <h1 data-i18n="hero">Swachh City<br><span>starts with you.</span></h1>
+    <p data-i18n="herosub">See a full bin? Report it. It lands on a driver's route today — track it here.</p>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="score">MY SWACHH SCORE</h2>
+    <div class="score">
+      <div><div class="pts" id="myPoints">0</div><small id="myLevel">NEW CITIZEN</small></div>
+      <input id="reporterName" placeholder="Your name">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="nearby">BINS NEAR YOU</h2>
+    <div id="nearList"><div style="font-family:var(--font-mono);font-size:11px;color:var(--color-slate-600);padding:8px 4px">Locating…</div></div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="segtitle">SEGREGATE RIGHT — SWM RULES 2016</h2>
+    <div class="seg">
+      <div class="wet"><b data-i18n="wet">WET · GREEN</b><span data-i18n="wetex">Kitchen, flowers, food</span></div>
+      <div class="dry"><b data-i18n="dry">DRY · BLUE</b><span data-i18n="dryex">Plastic, paper, metal</span></div>
+      <div class="haz"><b data-i18n="haz">HAZARD · RED</b><span data-i18n="hazex">Sanitary, blades, chemicals</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="mine">MY REPORTS</h2>
+    <ul class="mine" id="myList"><li style="color:var(--color-slate-500)">—</li></ul>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-label="Report">
+  <h3 id="sheetTitle">Report bin</h3>
+  <div class="chips" id="typeChips"></div>
+  <textarea id="noteInput" rows="2" placeholder="Note (optional)"></textarea>
+  <button class="go" id="sendBtn" data-i18n="send">SEND REPORT →</button>
+</div>
+<div id="toast"></div>
+<div class="foot">WASTE WISE · SWACHH BHARAT MISSION ALIGNED</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script type="module" src="citizen.js" defer></script>
+</body>
+</html>

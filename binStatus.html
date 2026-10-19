@@ -1,221 +1,69 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bin Status - Waste Wise</title>
-    <link rel="stylesheet" href="binstatus.css">
-    <!-- Chart.js library for gauges -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <style>
-        /* General Body Styles */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
-            color: #333;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            min-height: 100vh;
-            margin: 0;
-            box-sizing: border-box;
-        }
-        h1, h2 {
-            color: #2c3e50;
-            margin-bottom: 20px;
-        }
-        .container {
-            background-color: #fff;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            margin-bottom: 30px;
-            width: 90%;
-            max-width: 1200px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-        }
-        .details-card {
-            background-color: #e8f5e9; /* Light green */
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            flex: 1 1 calc(50% - 20px); /* Two columns on larger screens */
-            min-width: 280px;
-        }
-        .gauge-card {
-            background-color: #f7f9fc;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            flex: 1 1 calc(25% - 20px); /* Four gauges on larger screens */
-            min-width: 200px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        canvas {
-            max-width: 150px;
-            max-height: 150px;
-            margin-bottom: 10px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            background-color: #fff;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-        th, td {
-            padding: 15px 20px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        th {
-            background-color: #4CAF50; /* Green header */
-            color: white;
-            font-weight: bold;
-        }
-        tr:hover {
-            background-color: #f2f2f2;
-            cursor: pointer;
-        }
-        tbody tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        /* Styles for status cells */
-        .text-green-600 { color: #28a745; } /* Example green */
-        .text-orange-600 { color: #fd7e14; } /* Example orange */
-        .text-red-600 { color: #dc3545; }   /* Example red */
-        .font-bold { font-weight: bold; }
-
-        /* Responsive adjustments */
-        @media (max-width: 768px) {
-            .container {
-                flex-direction: column;
-                align-items: center;
-            }
-            .details-card, .gauge-card {
-                flex: 1 1 100%; /* Single column on mobile */
-            }
-            th, td {
-                padding: 10px 15px;
-            }
-        }
-        /* Modal styles (consistent across the app) */
-        .message-box {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            z-index: 1000;
-            text-align: center;
-            display: none; /* Hidden by default */
-            max-width: 400px;
-            width: 90%;
-            border: 1px solid #ddd;
-        }
-        .message-box.show {
-            display: block;
-        }
-        .message-box h3 {
-            margin-top: 0;
-            color: #2c3e50;
-        }
-        .message-box p {
-            margin-bottom: 20px;
-            font-size: 1rem;
-        }
-        .message-box button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background-color 0.3s ease;
-        }
-        .message-box button.cancel-btn {
-            background-color: #6c757d;
-            margin-left: 10px;
-        }
-        .message-box button:hover {
-            filter: brightness(110%);
-        }
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-            display: none;
-        }
-        .overlay.show {
-            display: block;
-        }
-    </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bin — Waste Wise</title>
+<link rel="stylesheet" href="design-tokens.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body{ background:var(--color-paper-100)}
+  .bar{ background:var(--color-ink-950); color:#fff; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; border-bottom:4px solid var(--color-acid-400); position:sticky; top:0; z-index:10}
+  .bar b{ font-family:var(--font-mono); font-size:12px; letter-spacing:.14em}
+  .bar button{ font-family:var(--font-mono); font-size:11px; letter-spacing:.1em; padding:8px 12px; border-radius:999px; border:1px solid #2a2a2a; background:transparent; color:#fff; cursor:pointer}
+  .bar button:hover{ background:#fff; color:var(--color-ink-950)}
+  .wrap{ max-width:1180px; margin:0 auto; padding:20px 18px}
+  .hero{ display:grid; grid-template-columns: 1.1fr .9fr; gap:16px; align-items:start}
+  .live{ background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:18px; box-shadow:var(--shadow-sm)}
+  .live h2{ font-family:var(--font-display); font-size:18px; letter-spacing:-.02em}
+  .live .id{ font-family:var(--font-mono); font-size:11px; color:var(--color-slate-500); margin-top:4px}
+  .kv{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px}
+  .kv div{ border:1px solid var(--color-border); background:var(--color-paper-50); border-radius:12px; padding:12px}
+  .kv label{ font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; color:var(--color-slate-600); display:block}
+  .kv b{ font-family:var(--font-mono); font-size:18px; margin-top:6px; display:block}
+  .kv b small{ font-size:11px; color:var(--color-slate-500); font-weight:400}
+  .gauges{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px}
+  .gauge{ background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:16px; text-align:center; box-shadow:var(--shadow-sm)}
+  .gauge h3{ font-family:var(--font-mono); font-size:11px; letter-spacing:.12em; color:var(--color-slate-600)}
+  .gauge canvas{ max-width:140px; max-height:140px; margin:10px auto}
+  .foot{ text-align:center; margin-top:18px}
+  .status{ position:fixed; right:12px; bottom:12px; background:var(--color-ink-950); color:#fff; font-family:var(--font-mono); font-size:11px; padding:8px 10px; border-radius:999px; display:flex; gap:8px; align-items:center}
+  .status i{ width:8px; height:8px; background:var(--color-acid-400); border-radius:50%; display:inline-block}
+  .message-box{ position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:20px; width:90%; max-width:380px; display:none; z-index:1000}
+  .message-box.show{ display:block} .overlay{ position:fixed; inset:0; background:rgba(11,26,19,.45); display:none; z-index:999} .overlay.show{ display:block}
+  .message-box button{ padding:10px 14px; border-radius:999px; border:1.5px solid var(--color-ink-950); background:var(--color-ink-950); color:var(--color-acid-400); font-family:var(--font-mono); font-size:11px; cursor:pointer}
+  @media(max-width:900px){ .hero{ grid-template-columns:1fr} .kv{ grid-template-columns:1fr 1fr} }
+</style>
 </head>
 <body>
-    <h1>Waste Wise - Bin Status</h1>
-
-    <div class="container">
-        <div class="details-card">
-            <h2>Live Data for Bin: <span id="currentBinId">Loading...</span></h2>
-            <p><strong>Location:</strong> <span id="binLocation">--</span></p>
-            <p><strong>Fullness:</strong> <span id="binFullness">--</span>%</p>
-            <p><strong>Weight:</strong> <span id="binWeight">--</span> kg</p>
-            <p><strong>Humidity:</strong> <span id="binHumidity">--</span>%</p>
-            <p><strong>Temperature:</strong> <span id="binTemperature">--</span> °C</p>
-        </div>
-
-        <div class="gauge-card">
-            <h3>Fullness</h3>
-            <canvas id="fullnessGauge"></canvas>
-        </div>
-        <div class="gauge-card">
-            <h3>Weight</h3>
-            <canvas id="weightGauge"></canvas>
-        </div>
-        <div class="gauge-card">
-            <h3>Humidity</h3>
-            <canvas id="humidityGauge"></canvas>
-        </div>
-        <div class="gauge-card">
-            <h3>Temperature</h3>
-            <canvas id="temperatureGauge"></canvas>
-        </div>
+<div class="bar">
+  <b>WASTE WISE · BIN TELEMETRY</b>
+  <button id="backToDashboard">← DRIVER</button>
+</div>
+<div class="wrap">
+  <div class="hero">
+    <div class="live">
+      <h2>Bin <span id="currentBinId">—</span></h2>
+      <div class="id" id="binLocation">—</div>
+      <div class="kv">
+        <div><label>Fullness</label><b id="binFullness">—<small>%</small></b></div>
+        <div><label>Weight</label><b id="binWeight">—<small> kg</small></b></div>
+        <div><label>Humidity</label><b id="binHumidity">—<small>%</small></b></div>
+        <div><label>Temperature</label><b id="binTemperature">—<small> °C</small></b></div>
+      </div>
     </div>
-
-    <!-- Back to Dashboard Button -->
-    <button id="backToDashboard" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px;">
-        ← Back to Dashboard
-    </button>
-
-    <!-- Custom Message/Confirmation Modal HTML - REQUIRED FOR showMessageBox() -->
-    <div id="messageBox" class="message-box">
-        <h3 id="messageBoxTitle"></h3>
-        <p id="messageBoxContent"></p>
-        <button id="messageBoxConfirmBtn">OK</button>
-        <button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button>
+    <div class="gauges">
+      <div class="gauge"><h3>FULLNESS</h3><canvas id="fullnessGauge"></canvas></div>
+      <div class="gauge"><h3>WEIGHT</h3><canvas id="weightGauge"></canvas></div>
+      <div class="gauge"><h3>HUMIDITY</h3><canvas id="humidityGauge"></canvas></div>
+      <div class="gauge"><h3>TEMP</h3><canvas id="temperatureGauge"></canvas></div>
     </div>
-    <div id="overlay" class="overlay"></div>
-
-    <!-- Your JavaScript file must be linked HERE, at the end of the body -->
-    <!-- Socket.IO client -->
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script type="module" src="binstatus.js" defer></script>
+  </div>
+  <div class="foot"><span style="font-family:var(--font-mono);font-size:11px;color:var(--color-slate-500)">Live via Socket.IO · OSRM road distance · LNS optimisation</span></div>
+</div>
+<div id="socketStatus" class="status"><i></i><span id="lastUpdate">Last update: never</span></div>
+<div id="messageBox" class="message-box"><h3 id="messageBoxTitle"></h3><p id="messageBoxContent"></p><button id="messageBoxConfirmBtn">OK</button><button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button></div>
+<div id="overlay" class="overlay"></div>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script type="module" src="binstatus.js" defer></script>
 </body>
 </html>

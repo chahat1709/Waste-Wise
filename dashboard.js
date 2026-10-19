@@ -188,41 +188,42 @@ async function loadBins() {
         try { showMessageBox('Bin Load Error', 'Failed to fetch bins from server. Check server is running and CORS/Network settings.', false); } catch (e) {}
     } finally {
         hideLoader();
+        try{ updateBadges(); }catch(e){}
     }
 }
 
 
 /* ===========================================================================
-   Firebase Authentication Check (More Robust)
+   Firebase Authentication — DEMO MODE (login disabled for tasting)
+   Set REQUIRE_AUTH=true to re-enable forced login.
    =========================================================================== */
-let isAuthCheckComplete = false; // Flag to ensure check runs once
+const REQUIRE_AUTH = false; // <- login stopped — driver opens directly
+let isAuthCheckComplete = false;
 onAuthStateChanged(auth, async (user) => {
-    hideLoader(); // Hide initial loader
+    hideLoader();
+    const welcomeElem = getElement("welcomeMessage");
     if (!user) {
-        if (!isAuthCheckComplete) { // Only show message and redirect if it's the initial check
-            await showMessageBox("Authentication Required", "Please log in to access the dashboard.", false);
-            window.location.href = "login.html";
+        if (REQUIRE_AUTH) {
+            if (!isAuthCheckComplete) {
+                await showMessageBox("Authentication Required", "Please log in to access the dashboard.", false);
+                window.location.href = "login.html";
+            } else {
+                await showMessageBox("Session Expired", "Your session has expired. Please log in again.", false);
+                window.location.href = "login.html";
+            }
         } else {
-            // User logged out or session expired after initial load, prompt again
-            await showMessageBox("Session Expired", "Your session has expired. Please log in again.", false);
-            window.location.href = "login.html";
+            // Demo / tasting: allow guest driver without login
+            if (welcomeElem) welcomeElem.textContent = `Driver · demo · driver-123`;
+            // Ensure a demo driverId exists for socket & route fetch
+            if (!localStorage.getItem('driverId')) localStorage.setItem('driverId','driver-123');
+            if (!getCookie('driverId')) setCookie('driverId','driver-123',1);
+            loadBins();
         }
     } else {
-        const welcomeElem = getElement("welcomeMessage");
-        if (welcomeElem) {
-            welcomeElem.textContent = `Welcome, ${user.email} (Driver)`; // Assuming driver role for this dashboard
-        }
-
-        loadBins(); // Load bins for the authenticated user
-
-        // This is where you would set up Supabase Realtime Subscription for the driver's relevant bins
-        // For now, we'll keep the polling logic commented out, as we decided to replace it.
-        // setupRealtimeSubscription(); // Call this when you implement Supabase Realtime
-
-        // Remove old polling logic if it was here:
-        // startAutoRefresh(); // This uses setInterval, we want to move to Supabase Realtime
+        if (welcomeElem) welcomeElem.textContent = `Welcome, ${user.email} (Driver)`;
+        loadBins();
     }
-    isAuthCheckComplete = true; // Mark auth check as complete after first run
+    isAuthCheckComplete = true;
 });
 
 // ✅ Placeholder for Supabase Realtime Subscription (Future Implementation)
@@ -239,26 +240,31 @@ onAuthStateChanged(auth, async (user) => {
 
 
 /* ===========================================================================
-   Logout Function
+   Logout Function — respects demo mode
    =========================================================================== */
 async function logout() {
     const confirmed = await showMessageBox("Confirm Logout", "Are you sure you want to log out?", true);
-    if (!confirmed) {
-        return;
-    }
-
-    try {
-        await signOut(auth);
-        console.log("✅ User logged out successfully via Firebase.");
+    if (!confirmed) return;
+    try { await signOut(auth); } catch (e) { console.warn('signOut ignored in demo', e.message); }
+    console.log("✅ Logged out (demo mode keeps dashboard accessible).");
+    if (REQUIRE_AUTH) {
         await showMessageBox("Logged Out", "You have been successfully logged out.", false);
-        window.location.href = "login.html"; // Redirect to login page
-    } catch (error) {
-        console.error("❌ Firebase Logout error:", error);
-        showMessageBox("Logout Error", "Failed to log out: " + error.message, false);
+        window.location.href = "login.html";
+    } else {
+        // In demo, just clear demo identity and stay on dashboard for tasting
+        localStorage.removeItem('driverId'); setCookie('driverId','',-1);
+        await showMessageBox("Demo Logout", "Demo identity cleared. You stay on driver — refresh to re-enter as driver-123.", false);
+        localStorage.setItem('driverId','driver-123'); setCookie('driverId','driver-123',1);
+        window.location.reload();
     }
 }
 // Make logout function globally accessible for onclick attribute in HTML
 window.logout = logout; // Assign to window object so it can be called from HTML onclick
+// Attach to logout button if present
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('logoutButton');
+  if (btn) btn.addEventListener('click', logout);
+});
 
 /* ===========================================================================
    LLM Integration: Smart Route Optimization
@@ -279,6 +285,7 @@ let routeState = {
     trackingIntervalId: null,
     map: null,
     polyline: null,
+    roadLines: [],
     markers: [],
     driverMarker: null
 };
@@ -398,20 +405,54 @@ function initSocket() {
         } catch (e) { console.warn('hazardAlert handler', e); }
     });
 
+    // event-driven reroute suggestion (triggered when any bin crosses fullness threshold)
+    socket.on('rerouteSuggestion', async (payload) => {
+        try {
+            console.log('rerouteSuggestion', payload);
+            const bin = payload.bin || payload;
+            const txt = `Reroute suggested: Bin ${bin.id} needs urgent collection (${payload.priority || 'medium'} priority).`;
+            addAlert(txt);
+            tryShowNotification('Reroute Suggestion', { body: txt });
+            // Optionally auto-refresh smart route UI if visible
+            const srVisible = document.getElementById('smart-route') && document.getElementById('smart-route').style.display !== 'none';
+            if (srVisible) { try { await loadSmartRouteUI(); } catch(e){} }
+        } catch (e) { console.warn('rerouteSuggestion handler', e); }
+    });
+    socket.on('fullnessAlert', async (payload) => {
+        try {
+            console.log('fullnessAlert', payload);
+            const bin = payload.bin || payload;
+            const txt = `Bin ${bin.id || bin.binId} is ${bin.fullness||''}% full - needs attention`;
+            addAlert(txt);
+            tryShowNotification('Bin Full Alert', { body: txt });
+        } catch (e) { console.warn('fullnessAlert handler', e); }
+    });
+
     return socket;
 }
 
-// Small helper to add alerts to Alerts section
+// Small helper to add alerts to Alerts section + update badges
+function updateBadges() {
+    try {
+        const bc = document.getElementById('binCountBadge');
+        const ac = document.getElementById('alertBadge');
+        const top = document.getElementById('alertCountTop');
+        const bins = document.querySelectorAll('#binTableBody tr').length;
+        const alerts = document.querySelectorAll('#alertsList li').length;
+        if (bc) bc.textContent = isNaN(bins) ? '—' : bins;
+        if (ac) ac.textContent = alerts;
+        if (top) top.textContent = alerts + ' alerts';
+    } catch(e){}
+}
 function addAlert(text) {
     const alertsList = getElement('alertsList');
     const noAlerts = getElement('noAlertsMessage');
     if (!alertsList) return;
     const li = document.createElement('li');
-    li.style.padding = '8px';
-    li.style.borderBottom = '1px solid #eee';
     li.textContent = `${new Date().toLocaleTimeString()}: ${text}`;
     alertsList.insertBefore(li, alertsList.firstChild);
     if (noAlerts) noAlerts.style.display = 'none';
+    updateBadges();
 }
 
 // Load historical alerts from server and populate alertsList
@@ -431,12 +472,11 @@ async function loadAlerts() {
         }
         alerts.forEach(a => {
             const li = document.createElement('li');
-            li.style.padding = '8px';
-            li.style.borderBottom = '1px solid #eee';
             li.textContent = `${new Date(a.createdAt || Date.now()).toLocaleString()}: ${a.type || 'alert'} - ${a.message || (a.bin && a.bin.id ? 'Bin ' + a.bin.id : '')}`;
             list.appendChild(li);
         });
         if (noAlerts) noAlerts.style.display = 'none';
+        updateBadges();
     } catch (e) {
         console.warn('loadAlerts failed', e);
     }
@@ -538,12 +578,37 @@ function clearRouteMap() {
     routeState.markers.forEach(m => routeState.map.removeLayer(m));
     routeState.markers = [];
     if (routeState.polyline) {
-        routeState.map.removeLayer(routeState.polyline);
+        try { routeState.map.removeLayer(routeState.polyline); } catch(e){}
         routeState.polyline = null;
+    }
+    // also clear any road polylines stored as array
+    if (routeState.roadLines) {
+        routeState.roadLines.forEach(l=>{ try{ routeState.map.removeLayer(l);}catch(e){} });
+        routeState.roadLines = [];
     }
     if (routeState.driverMarker) {
         try { routeState.map.removeLayer(routeState.driverMarker); } catch (e) {}
         routeState.driverMarker = null;
+    }
+}
+
+// --- Road routing via OSRM (free, no key) ---
+async function fetchRoadGeometry(points) {
+    // points: [[lat,lng], ...]
+    if (!points || points.length < 2) return null;
+    try {
+        const coordStr = points.map(p => `${p[1]},${p[0]}`).join(';');
+        const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`OSRM ${resp.status}`);
+        const data = await resp.json();
+        if (!data.routes || !data.routes[0] || !data.routes[0].geometry) throw new Error('no route');
+        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]); // to [lat,lng]
+        const dist = Math.round(data.routes[0].distance); // meters road
+        return { coords, distance: dist };
+    } catch (e) {
+        console.warn('OSRM route failed, fallback to straight', e.message);
+        return null;
     }
 }
 
@@ -714,7 +779,7 @@ async function loadSmartRouteUI() {
     }
 }
 
-function renderRouteOnMap(route) {
+async function renderRouteOnMap(route) {
     const map = initRouteMap();
     clearRouteMap();
     if (!route || !route.bins) return;
@@ -747,8 +812,33 @@ function renderRouteOnMap(route) {
         routeState.markers.push(m);
     }
     if (points.length > 0) {
-        routeState.polyline = L.polyline(points, { color: 'blue' }).addTo(map);
-        map.fitBounds(routeState.polyline.getBounds(), { padding: [40,40] });
+        // Try road-following geometry via OSRM (true road KM)
+        const road = await fetchRoadGeometry(points);
+        if (road && road.coords && road.coords.length > 1) {
+            // draw road line (bold ink) + faint shadow
+            const shadow = L.polyline(road.coords, { color: '#ffffff', weight: 8, opacity: 0.9 }).addTo(map);
+            const line = L.polyline(road.coords, { color: '#0f1110', weight: 4, opacity: 0.95 }).addTo(map);
+            routeState.roadLines = [shadow, line];
+            routeState.polyline = line;
+            // update header with true road distance
+            const meta = document.getElementById('routeResult');
+            if (meta) {
+                const km = (road.distance/1000).toFixed(1);
+                meta.textContent = `${route.bins.length} stops · ${km} km road · ${route.status}`;
+                meta.title = `Road distance ${km} km via OSRM (was ${route.distance? (route.distance/1000).toFixed(1)+' km straight':''})`;
+            }
+            // update details card distance if present
+            const details = document.getElementById('routeDetailsContent');
+            if (details && route.bins) {
+                // patch the KM display inside details card without full re-render
+                setTimeout(()=> renderRouteDetails({...route, distance: road.distance}), 100);
+            }
+            map.fitBounds(line.getBounds(), { padding: [40,40] });
+        } else {
+            // fallback straight line (Haversine)
+            routeState.polyline = L.polyline(points, { color: '#0f1110', weight: 3, opacity: 0.6, dashArray: '6 6' }).addTo(map);
+            map.fitBounds(routeState.polyline.getBounds(), { padding: [40,40] });
+        }
     }
     // Attach click handler to collect buttons inside popups
     document.querySelectorAll('.collectBtn').forEach(btn => {
@@ -775,34 +865,69 @@ async function confirmCollect(routeId, binId) {
     }
 }
 
+function renderRouteDetails(route) {
+    const card = getElement('routeDetailsCard');
+    const content = getElement('routeDetailsContent');
+    const idLabel = getElement('routeIdLabel');
+    const nextBtn = getElement('navNextBtn');
+    const collectBtn = getElement('markCollectedBtn');
+    if (!card || !content) return;
+    if (!route || !route.bins) { card.style.display='none'; return; }
+    const stops = route.bins.length;
+    const collected = (route.collectedBins && route.collectedBins.length) || 0;
+    const remaining = stops - collected;
+    const progress = stops ? Math.round((collected/stops)*100) : 0;
+    const distKm = route.distance ? (route.distance/1000).toFixed(1) : (route.bins.reduce((a,b)=>a+1,0)*0.6).toFixed(1);
+    // find next uncollected bin
+    let nextBin = null;
+    if (route.bins) {
+        const collectedIds = new Set((route.collectedBins||[]).map(c=>c.binId));
+        nextBin = route.bins.find(b=>!collectedIds.has(b.id)) || route.bins[0];
+    }
+    if (idLabel) idLabel.textContent = route.id ? `· ${route.id.slice(0,8)}` : '';
+    content.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px">
+        <div><div style="color:#888">STOPS</div><b>${stops}</b></div>
+        <div><div style="color:#888">REMAINING</div><b>${remaining}</b></div>
+        <div><div style="color:#888">DISTANCE</div><b>${distKm} km</b></div>
+      </div>
+      <div style="background:#f0f0eb; border-radius:8px; height:8px; overflow:hidden; margin-bottom:10px"><div style="width:${progress}%; height:100%; background:var(--acid); border:1px solid var(--ink)"></div></div>
+      <div style="color:#444">${collected}/${stops} collected · ${progress}%</div>
+      ${nextBin ? `<div style="margin-top:10px; padding:10px; background:#fbfbf8; border:1px solid #ecebe6; border-radius:8px">NEXT: <b>${nextBin.id}</b> · ${nextBin.location || nextBin.lat.toFixed(4)+','+nextBin.lng.toFixed(4)} · ${nextBin.fullness!=null?nextBin.fullness+'%':''} <a href="https://www.google.com/maps/dir/?api=1&destination=${nextBin.lat},${nextBin.lng}" target="_blank" style="margin-left:8px; color:var(--ink); text-decoration:underline">Navigate ↗</a></div>` : ''}
+    `;
+    card.style.display='block';
+    if (nextBtn && nextBin) {
+        nextBtn.style.display='inline-flex';
+        nextBtn.onclick = ()=> window.open(`https://www.google.com/maps/dir/?api=1&destination=${nextBin.lat},${nextBin.lng}`,'_blank');
+    }
+    if (collectBtn && nextBin) {
+        collectBtn.style.display='inline-flex';
+        collectBtn.onclick = ()=> confirmCollect(route.id, nextBin.id);
+    }
+}
 async function refreshAssignedRoute() {
     const driverId = routeState.driverId || localStorage.getItem('driverId') || 'driver-123';
     const route = await fetchAssignedRoute(driverId);
     routeState.route = route;
     const routeResult = getElement('routeResult');
+    const card = getElement('routeDetailsCard');
     if (!route) {
-        routeResult.textContent = 'No assigned route.';
-        // Show nearby bins around current driver location to give actionable UI
+        if (routeResult) routeResult.textContent = 'No assigned route — showing nearby bins';
+        if (card) card.style.display='none';
         try {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(async (pos) => {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    await showNearbyBinsOnMap(lat, lng);
-                }, async (err) => {
-                    // Fallback: center map to a default location and try to show nearby bins using last known driver marker
-                    clearRouteMap();
-                }, { enableHighAccuracy: true });
-            } else {
-                clearRouteMap();
-            }
-        } catch (e) {
-            console.warn('refreshAssignedRoute fallback error', e);
-            clearRouteMap();
-        }
+                    await showNearbyBinsOnMap(pos.coords.latitude, pos.coords.longitude);
+                }, async () => { clearRouteMap(); }, { enableHighAccuracy: true });
+            } else { clearRouteMap(); }
+        } catch (e) { clearRouteMap(); }
         return;
     }
-    routeResult.textContent = JSON.stringify(route, null, 2);
+    if (routeResult) {
+        const km = route.distance ? (route.distance/1000).toFixed(1) : '?';
+        routeResult.textContent = `${route.bins.length} stops · ${km} km · ${route.status}`;
+    }
+    renderRouteDetails(route);
     renderRouteOnMap(route);
 }
 
@@ -1025,30 +1150,36 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Load historical alerts to populate Alerts section
     try { await loadAlerts(); } catch (e) { /* ignore */ }
 
-    // Section Switching Logic
-    const sections = document.querySelectorAll(".section");
-    const navLinks = document.querySelectorAll(".nav-links a");
+    // Route tab is visible by default (map is home) — so load its data on boot,
+    // not only after a tab click. Without this a fresh load never fetches the
+    // assigned route and #routeDetailsCard stays hidden forever.
+    try { await refreshAssignedRoute(); } catch (e) { /* ignore */ }
+    try { await loadSmartRouteUI(); } catch (e) { /* ignore */ }
 
-    navLinks.forEach(link => {
+    // Section Switching Logic — supports both legacy .nav-links and new .tab sheet
+    const sections = document.querySelectorAll(".sheet .section");
+    const legacyNavLinks = document.querySelectorAll(".nav-links a");
+    const tabLinks = document.querySelectorAll(".tab[data-section]");
+    const allLinks = [...legacyNavLinks, ...tabLinks];
+    function activateTab(sectionId, clickedEl) {
+        sections.forEach(section => section.style.display = "none");
+        const targetSection = document.getElementById(sectionId);
+        if (targetSection) targetSection.style.display = "block";
+        if (clickedEl && clickedEl.classList.contains('tab')) {
+            document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+            clickedEl.classList.add('active');
+            // keep map visible - ensure map invalidates size after tab switch
+            setTimeout(()=>{ if(routeState.map) routeState.map.invalidateSize(); }, 150);
+        }
+        if (sectionId === "area-bin") loadBins();
+        if (sectionId === "alerts") loadAlerts();
+        if (sectionId === "smart-route") { refreshAssignedRoute(); loadSmartRouteUI(); }
+    }
+    allLinks.forEach(link => {
         link.addEventListener("click", (event) => {
             event.preventDefault();
             const sectionId = link.getAttribute("data-section");
-            
-            // Hide all sections
-            sections.forEach(section => section.style.display = "none");
-            
-            // Show the selected section
-            const targetSection = document.getElementById(sectionId);
-            if (targetSection) {
-                targetSection.style.display = "block";
-            } else {
-                console.error(`Section with ID '${sectionId}' not found.`);
-            }
-
-            // Optional: Re-fetch data for "Area Bin" if it's selected
-            if (sectionId === "area-bin") {
-                loadBins();
-            }
+            activateTab(sectionId, link);
         });
     });
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Waste Wise Routing Engine (Production Release)
-------------------------------------------------
-Algorithm: Constructive Heuristic (Cheapest Insertion) + Large Neighborhood Search (LNS)
+Waste Wise Routing Engine (Production Release) - Unified Solver
+----------------------------------------------------------------
+Algorithm: OR-Tools (if available) -> LNS Heuristic (fallback)
 Map Provider: Mappls (MapmyIndia) with Haversine Fallback
-Author: Waste Wise Team
-License: Proprietary
+Output: JSON to stdout { routes: [{vehicle_id, nodes:[{index,lat,lng}], distance, load}], total_distance, algorithm, data_source }
+Input : JSON via stdin { locations: [{lat,lng}|[lat,lng]], demands, vehicle_capacities|vehicle_capacity, num_vehicles, depot, mappls_api_key }
 """
 
 import sys
@@ -13,312 +13,372 @@ import json
 import math
 import random
 import os
-import requests
-import logging
 import time
+import logging
 from typing import List, Dict, Tuple, Optional, Any
 
-# --- Configuration & Logging Setup ---
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stderr)  # Log to stderr so stdout stays clean for JSON
-    ]
+    handlers=[logging.StreamHandler(sys.stderr)]
 )
 logger = logging.getLogger("WasteWiseRouter")
 
-# Type Aliases for clarity
+try:
+    import requests
+except ImportError:
+    requests = None
+    logger.warning("requests not available - Mappls disabled, Haversine only")
+
 Coord = Tuple[float, float]
 Matrix = List[List[int]]
 Route = List[int]
 Solution = List[Route]
 
+# Try OR-Tools import - optional
+try:
+    from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+    ORTOOLS_AVAILABLE = True
+    logger.info("OR-Tools available")
+except Exception as e:
+    ORTOOLS_AVAILABLE = False
+    logger.info(f"OR-Tools not available: {e} - using LNS fallback")
+
 
 class WasteWiseOptimizer:
-    """
-    Production-grade solver class for the CVRP problem using Mappls data.
-    """
-    
+    """LNS heuristic solver - pure python, no ortools required"""
+
     def __init__(self, api_key: Optional[str] = None):
-        """
-        Initialize the optimizer.
-        :param api_key: Mappls API Key. If None, checks os.environ['MAPPLS_API_KEY'].
-        """
         self.api_key = api_key or os.environ.get("MAPPLS_API_KEY")
         if not self.api_key:
-            logger.warning("No API key provided. Engine will default to Haversine distance.")
-
-    # ==========================================
-    # Core Logic: Distance Calculation
-    # ==========================================
+            logger.warning("No Mappls API key - using Haversine distance.")
 
     def _get_mappls_matrix(self, coords: List[Coord]) -> Optional[Matrix]:
-        """
-        Fetches driving distance matrix from Mappls API.
-        """
-        if not self.api_key:
+        if not self.api_key or requests is None:
             return None
-
-        # Mappls expects "lng,lat" format
         locations = ";".join([f"{lng},{lat}" for lat, lng in coords])
-        
-        # NOTE: Verify specific endpoint version based on your API Key type (REST vs Legacy)
         url = f"https://apis.mappls.com/advancedmaps/v1/{self.api_key}/distance_matrix/driving/{locations}"
-        
         params = {"sources": "all", "destinations": "all"}
-        
         try:
             start_t = time.time()
             response = requests.get(url, params=params, timeout=5)
             response.raise_for_status()
             data = response.json()
-            
-            # Validate response structure
             if "results" not in data or "distances" not in data["results"]:
-                logger.error(f"Mappls API invalid response: {data}")
+                logger.error(f"Mappls invalid response: {data}")
                 return None
-                
             matrix = []
             for row in data["results"]["distances"]:
                 matrix.append([int(d) for d in row])
-                
             logger.info(f"Mappls API success in {time.time() - start_t:.2f}s")
             return matrix
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Mappls API Connection Error: {str(e)}")
-            return None
         except Exception as e:
-            logger.exception(f"Unexpected error in Mappls fetch: {e}")
+            logger.error(f"Mappls error: {e}")
+            return None
+
+    def _get_osrm_matrix(self, coords: List[Coord]) -> Optional[Matrix]:
+        """OSRM public table API — no key, road distance. Free fallback between Mappls and Haversine."""
+        if requests is None:
+            return None
+        try:
+            # OSRM expects lng,lat
+            coord_str = ";".join([f"{lng},{lat}" for lat, lng in coords])
+            url = f"https://router.project-osrm.org/table/v1/driving/{coord_str}"
+            params = {"annotations": "distance"}
+            start_t = time.time()
+            resp = requests.get(url, params=params, timeout=8)
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("code") != "Ok" or "distances" not in data:
+                logger.warning(f"OSRM table invalid: {data}")
+                return None
+            # OSRM distances are float meters, can be null for unreachable
+            matrix = []
+            for row in data["distances"]:
+                matrix.append([int(round(v)) if v is not None else 999999 for v in row])
+            logger.info(f"OSRM table success {len(coords)}x{len(coords)} in {time.time()-start_t:.2f}s")
+            return matrix
+        except Exception as e:
+            logger.warning(f"OSRM table failed: {e}")
             return None
 
     def _haversine_matrix(self, coords: List[Coord]) -> Matrix:
-        """Fallback mathematical distance calculation (Crow flies)."""
         n = len(coords)
         matrix = [[0] * n for _ in range(n)]
-        R = 6371000.0  # Earth radius in meters
-
+        R = 6371000.0
         for i in range(n):
             for j in range(i + 1, n):
                 lat1, lon1 = math.radians(coords[i][0]), math.radians(coords[i][1])
                 lat2, lon2 = math.radians(coords[j][0]), math.radians(coords[j][1])
-                
                 dlat = lat2 - lat1
                 dlon = lon2 - lon1
-                
                 a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
                 c = 2 * math.asin(math.sqrt(a))
                 dist = int(R * c)
-                
                 matrix[i][j] = dist
                 matrix[j][i] = dist
-                
         return matrix
 
     def get_distance_matrix(self, coords: List[Coord]) -> Tuple[Matrix, str]:
-        """
-        Orchestrates matrix retrieval: Tries Mappls -> Falls back to Haversine.
-        Returns (Matrix, SourceName).
-        """
+        # 1. Mappls (paid, most accurate)
         matrix = self._get_mappls_matrix(coords)
         if matrix:
             return matrix, "Mappls (Roads)"
-        
+        # 2. OSRM (free road distance) — true road KM
+        matrix = self._get_osrm_matrix(coords)
+        if matrix:
+            return matrix, "OSRM (Roads)"
         logger.warning("Falling back to Haversine distance.")
         return self._haversine_matrix(coords), "Haversine (Fallback)"
 
-    # ==========================================
-    # Algorithm: LNS (Large Neighborhood Search)
-    # ==========================================
-
     def _calculate_cost(self, solution: Solution, matrix: Matrix, depot: int) -> int:
-        total_dist = 0
+        total = 0
         for route in solution:
-            if not route: continue
+            if not route:
+                continue
             prev = depot
             for node in route:
-                total_dist += matrix[prev][node]
+                total += matrix[prev][node]
                 prev = node
-            total_dist += matrix[prev][depot]
-        return total_dist
+            total += matrix[prev][depot]
+        return total
 
     def _can_fit(self, route: Route, node: int, demands: List[int], capacity: int) -> bool:
-        current_load = sum(demands[n] for n in route)
-        return (current_load + demands[node]) <= capacity
+        return sum(demands[n] for n in route) + demands[node] <= capacity
 
-    def _greedy_repair(self, routes: Solution, unassigned: List[int], 
-                      matrix: Matrix, demands: List[int], 
-                      capacity: int, depot: int) -> Solution:
-        """
-        Inserts unassigned nodes into the best available position (Cheapest Insertion).
-        """
+    def _greedy_repair(self, routes: Solution, unassigned: List[int], matrix: Matrix, demands: List[int], capacity: int, depot: int) -> Solution:
         while unassigned:
-            best_metrics = (float('inf'), None, -1, -1) # (cost_increase, node, route_idx, pos)
-            
+            best = (float('inf'), None, -1, -1)
             for node in unassigned:
                 for r_idx, route in enumerate(routes):
                     if not self._can_fit(route, node, demands, capacity):
                         continue
-                    
                     for i in range(len(route) + 1):
                         prev = depot if i == 0 else route[i-1]
                         nxt = depot if i == len(route) else route[i]
-                        
-                        cost_added = matrix[prev][node] + matrix[node][nxt]
-                        cost_removed = matrix[prev][nxt]
-                        increase = cost_added - cost_removed
-                        
-                        if increase < best_metrics[0]:
-                            best_metrics = (increase, node, r_idx, i)
-            
-            cost, best_node, r_idx, pos = best_metrics
-            
+                        increase = matrix[prev][node] + matrix[node][nxt] - matrix[prev][nxt]
+                        if increase < best[0]:
+                            best = (increase, node, r_idx, i)
+            cost, best_node, r_idx, pos = best
             if best_node is None:
-                # Critical Fail: Bin fits nowhere. Force logic or create new route?
-                # For this implementation, we force add to first route (Safety Valve)
                 if unassigned:
-                    panic_node = unassigned.pop(0)
-                    routes[0].append(panic_node)
-                    logger.warning(f"Capacity overflow: Forced bin {panic_node} into vehicle 0")
+                    panic = unassigned.pop(0)
+                    # try to place in route with most remaining capacity
+                    best_r = min(range(len(routes)), key=lambda x: sum(demands[n] for n in routes[x]))
+                    routes[best_r].append(panic)
+                    logger.warning(f"Capacity overflow: forced bin {panic} into vehicle {best_r}")
                 continue
-
             routes[r_idx].insert(pos, best_node)
             unassigned.remove(best_node)
-            
         return routes
 
     def _random_destroy(self, routes: Solution, num_remove: int) -> Tuple[Solution, List[int]]:
-        """Randomly removes 'num_remove' nodes from the solution."""
         new_routes = [r[:] for r in routes]
-        
-        # Flatten structure to pick nodes
-        node_map = []
-        for r_idx, route in enumerate(new_routes):
-            for node in route:
-                node_map.append((r_idx, node))
-        
+        node_map = [(r_idx, node) for r_idx, route in enumerate(new_routes) for node in route]
         if num_remove > len(node_map):
             num_remove = len(node_map)
-            
+        if num_remove == 0:
+            return new_routes, []
         targets = random.sample(node_map, num_remove)
         target_nodes = set(t[1] for t in targets)
-        
-        # Rebuild routes without targets
-        cleaned_routes = []
-        for route in new_routes:
-            cleaned_routes.append([n for n in route if n not in target_nodes])
-            
-        return cleaned_routes, list(target_nodes)
+        cleaned = [[n for n in route if n not in target_nodes] for route in new_routes]
+        return cleaned, list(target_nodes)
 
-    def solve(self, coords: List[Coord], demands: List[int], 
-             vehicle_cap: int, num_vehicles: int, depot: int = 0) -> Dict[str, Any]:
-        """
-        Main entry point for solving the VRP.
-        """
-        # 1. Get Data
-        matrix, source = self.get_distance_matrix(coords)
+    def solve(self, coords: List[Coord], demands: List[int], vehicle_cap: int, num_vehicles: int, depot: int = 0, matrix: Optional[Matrix] = None, source: Optional[str] = None) -> Dict[str, Any]:
+        if matrix is None or source is None:
+            matrix, source = self.get_distance_matrix(coords)
         all_nodes = [i for i in range(len(coords)) if i != depot]
-        
-        # 2. Initial Solution (Constructive)
-        logger.info(f"Starting solver with {len(coords)} nodes, Source: {source}")
+        logger.info(f"Solving with {len(coords)} nodes, {num_vehicles} vehicles, cap {vehicle_cap}, source: {source}")
         routes = [[] for _ in range(num_vehicles)]
         routes = self._greedy_repair(routes, all_nodes[:], matrix, demands, vehicle_cap, depot)
-        
-        best_solution = [r[:] for r in routes]
-        best_cost = self._calculate_cost(best_solution, matrix, depot)
-        
-        # 3. Optimization Loop (LNS)
+        best = [r[:] for r in routes]
+        best_cost = self._calculate_cost(best, matrix, depot)
         iterations = 200 if len(coords) < 50 else 500
         destroy_amt = max(1, int(len(all_nodes) * 0.25))
-        
+        curr = [r[:] for r in routes]
         for _ in range(iterations):
-            temp_routes, removed = self._random_destroy(routes, destroy_amt)
-            temp_routes = self._greedy_repair(temp_routes, removed, matrix, demands, vehicle_cap, depot)
-            temp_cost = self._calculate_cost(temp_routes, matrix, depot)
-            
-            # Hill Climbing Acceptance
+            temp, removed = self._random_destroy(curr, destroy_amt)
+            temp = self._greedy_repair(temp, removed, matrix, demands, vehicle_cap, depot)
+            temp_cost = self._calculate_cost(temp, matrix, depot)
             if temp_cost < best_cost:
-                best_solution = [r[:] for r in temp_routes]
+                best = [r[:] for r in temp]
                 best_cost = temp_cost
-                routes = temp_routes # Accept improvement
+                curr = temp
             else:
-                routes = [r[:] for r in best_solution] # Revert
-                
-        # 4. Format Output
+                curr = [r[:] for r in best]
         output_routes = []
-        for idx, r in enumerate(best_solution):
+        for idx, r in enumerate(best):
             full_path = [depot] + r + [depot]
-            
-            # Calculate precise road distance for final display
-            route_dist = 0
-            enriched_nodes = []
-            
-            for i in range(len(full_path)-1):
-                route_dist += matrix[full_path[i]][full_path[i+1]]
-                
-            for node_idx in full_path:
-                enriched_nodes.append({
-                    "index": node_idx,
-                    "lat": coords[node_idx][0],
-                    "lng": coords[node_idx][1]
-                })
-                
-            output_routes.append({
-                "vehicle_id": idx,
-                "nodes": enriched_nodes,
-                "distance": route_dist,
-                "load": sum(demands[n] for n in r)
-            })
-
-        return {
-            "routes": output_routes,
-            "total_distance": best_cost,
-            "algorithm": "LNS + Constructive Heuristic",
-            "data_source": source
-        }
+            route_dist = sum(matrix[full_path[i]][full_path[i+1]] for i in range(len(full_path)-1))
+            enriched = [{"index": n, "lat": coords[n][0], "lng": coords[n][1]} for n in full_path]
+            output_routes.append({"vehicle_id": idx, "nodes": enriched, "distance": route_dist, "load": sum(demands[n] for n in r)})
+        return {"routes": output_routes, "total_distance": best_cost, "algorithm": "LNS + Constructive Heuristic", "data_source": source}
 
 
-# ==========================================
-# Main Execution Handler
-# ==========================================
+def build_distance_matrix_haversine(coords: List[Coord]) -> Matrix:
+    n = len(coords)
+    matrix = [[0]*n for _ in range(n)]
+    R = 6371000.0
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            lat1, lon1 = math.radians(coords[i][0]), math.radians(coords[i][1])
+            lat2, lon2 = math.radians(coords[j][0]), math.radians(coords[j][1])
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            h = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
+            matrix[i][j] = int(R * 2 * math.asin(math.sqrt(h)))
+    return matrix
+
+
+def try_ortools_solve(coords: List[Coord], demands: List[int], vehicle_capacities: List[int], num_vehicles: int, depot: int, distance_matrix: Matrix) -> Optional[Dict[str, Any]]:
+    if not ORTOOLS_AVAILABLE:
+        return None
+    try:
+        manager = pywrapcp.RoutingIndexManager(len(distance_matrix), num_vehicles, depot)
+        routing = pywrapcp.RoutingModel(manager)
+
+        def distance_callback(from_index, to_index):
+            from_node = manager.IndexToNode(from_index)
+            to_node = manager.IndexToNode(to_index)
+            return distance_matrix[from_node][to_node]
+
+        transit_idx = routing.RegisterTransitCallback(distance_callback)
+        routing.SetArcCostEvaluatorOfAllVehicles(transit_idx)
+
+        def demand_callback(from_index):
+            from_node = manager.IndexToNode(from_index)
+            return demands[from_node]
+
+        demand_idx = routing.RegisterUnaryTransitCallback(demand_callback)
+        routing.AddDimensionWithVehicleCapacity(demand_idx, 0, vehicle_capacities, True, 'Capacity')
+
+        search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+        search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+        search_parameters.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+        search_parameters.time_limit.seconds = 5
+
+        solution = routing.SolveWithParameters(search_parameters)
+        if not solution:
+            logger.warning("OR-Tools failed to find solution")
+            return None
+
+        routes = []
+        total_distance = 0
+        for vehicle_id in range(num_vehicles):
+            index = routing.Start(vehicle_id)
+            route_nodes = []
+            route_distance = 0
+            while not routing.IsEnd(index):
+                node = manager.IndexToNode(index)
+                route_nodes.append(int(node))
+                previous_index = index
+                index = solution.Value(routing.NextVar(index))
+                route_distance += routing.GetArcCostForVehicle(previous_index, index, vehicle_id)
+            route_nodes.append(int(manager.IndexToNode(index)))
+            # enrich
+            enriched = [{"index": idx, "lat": coords[idx][0], "lng": coords[idx][1]} for idx in route_nodes]
+            routes.append({"vehicle_id": vehicle_id, "nodes": enriched, "distance": int(route_distance), "load": sum(demands[n] for n in route_nodes if n != depot)})
+            total_distance += route_distance
+
+        return {"routes": routes, "total_distance": int(total_distance), "algorithm": "OR-Tools", "data_source": "Haversine + OR-Tools"}
+    except Exception as e:
+        logger.exception(f"OR-Tools solve failed: {e}")
+        return None
+
 
 def main():
     try:
-        # Read from stdin
-        input_data = sys.stdin.read().strip()
-        if not input_data:
-            # Silent exit or default demo for testing
-            return 
+        raw = sys.stdin.read().strip()
+        if not raw:
+            # demo mode - provide sample
+            coords = [(12.9716, 77.5946), (12.9720, 77.5950), (12.9750, 77.5900), (12.9800, 77.5930)]
+            demands = [0, 1, 1, 2]
+            vehicle_capacities = [3, 3]
+            num_vehicles = 2
+            depot = 0
+            mappls_api_key = os.environ.get("MAPPLS_API_KEY")
+            optimizer = WasteWiseOptimizer(api_key=mappls_api_key)
+            result = optimizer.solve(coords, demands, vehicle_capacities[0], num_vehicles, depot, matrix=None, source=None)
+            print(json.dumps(result))
+            return
 
-        payload = json.loads(input_data)
-        
-        # Parse Inputs with Safe Defaults
+        payload = json.loads(raw)
+
+        # parse locations
         locs_raw = payload.get('locations') or payload.get('coords') or []
-        coords = []
+        coords: List[Coord] = []
         for l in locs_raw:
             if isinstance(l, dict):
                 coords.append((float(l.get('lat')), float(l.get('lng'))))
-            else:
+            elif isinstance(l, (list, tuple)) and len(l) >= 2:
                 coords.append((float(l[0]), float(l[1])))
+            else:
+                logger.warning(f"Skipping invalid location: {l}")
 
         if not coords:
             print(json.dumps({"error": "No coordinates provided"}))
             return
 
-        demands = payload.get('demands') or [0] * len(coords)
-        capacity = int(payload.get('vehicle_capacity', 100))
-        num_vehicles = int(payload.get('num_vehicles', 1))
-        depot_idx = int(payload.get('depot', 0))
-        
-        # Prioritize key from payload, else env, else None
-        api_key = payload.get("mappls_api_key")
+        n = len(coords)
+        # demands
+        if payload.get('demands') and len(payload['demands']) == n:
+            demands = [int(d) for d in payload['demands']]
+        else:
+            demands = [0]*n
+            # if fullness present in locations, derive? fallback 1 per node except depot
+            depot_idx = int(payload.get('depot', 0))
+            for i in range(n):
+                if i != depot_idx:
+                    demands[i] = 1
 
-        # --- EXECUTE ---
+        # vehicle capacities
+        if payload.get('vehicle_capacities'):
+            vehicle_capacities = [int(c) for c in payload['vehicle_capacities']]
+        elif payload.get('vehicle_capacity'):
+            vehicle_capacities = [int(payload['vehicle_capacity'])] * int(payload.get('num_vehicles', 1))
+        else:
+            vehicle_capacities = [10] * int(payload.get('num_vehicles', 1) or 1)
+
+        num_vehicles = int(payload.get('num_vehicles', len(vehicle_capacities)))
+        # ensure capacities length matches num_vehicles
+        if len(vehicle_capacities) < num_vehicles:
+            # pad with last capacity
+            last = vehicle_capacities[-1] if vehicle_capacities else 10
+            vehicle_capacities += [last] * (num_vehicles - len(vehicle_capacities))
+        elif len(vehicle_capacities) > num_vehicles:
+            vehicle_capacities = vehicle_capacities[:num_vehicles]
+
+        depot = int(payload.get('depot', 0))
+        if depot < 0 or depot >= n:
+            depot = 0
+
+        api_key = payload.get("mappls_api_key") or os.environ.get("MAPPLS_API_KEY")
+
+        # Build distance matrix once
         optimizer = WasteWiseOptimizer(api_key=api_key)
-        result = optimizer.solve(coords, demands, capacity, num_vehicles, depot_idx)
-        
-        # Output JSON to stdout
+        matrix, source = optimizer.get_distance_matrix(coords)
+
+        # Try OR-Tools first
+        ortools_result = try_ortools_solve(coords, demands, vehicle_capacities, num_vehicles, depot, matrix)
+        if ortools_result:
+            # enrich source
+            ortools_result["data_source"] = source + " + OR-Tools"
+            print(json.dumps(ortools_result))
+            return
+
+        # Fallback to LNS - use the most restrictive capacity as single cap; LNS handles heterogeneous via per-route? For now use min capacity and then after solve, split if needed
+        # For true heterogeneous, we use LNS iteratively per vehicle capacity - simplified: use average cap
+        # Use first capacity for LNS (it assumes uniform). For better, we run LNS with max capacity then validate.
+        # Instead we pass max capacity and let LNS run, then if overflow due to heterogeneous, it's okay - JS fallback also uniform.
+        # To respect heterogeneous, use min capacity as safe uniform
+        uniform_cap = min(vehicle_capacities) if vehicle_capacities else 10
+        # If capacities differ, log warning
+        if len(set(vehicle_capacities)) > 1:
+            logger.info(f"Heterogeneous capacities {vehicle_capacities} - LNS using uniform {uniform_cap}")
+
+        result = optimizer.solve(coords, demands, uniform_cap, num_vehicles, depot, matrix=matrix, source=source)
         print(json.dumps(result))
 
     except json.JSONDecodeError:
@@ -330,187 +390,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
-#!/usr/bin/env python3
-"""CVRP solver script for Waste Wise app.
-
-Accepts JSON on stdin with the following shape:
-{
-  "locations": [{"lat": number, "lng": number}, ...],
-  "demands": [int,...],
-  "vehicle_capacities": [int,...],
-  "num_vehicles": int,
-  "depot": int (index of depot in locations)
-}
-
-If stdin is empty the script runs a small built-in example.
-
-Outputs JSON to stdout:
-{ "routes": [ { vehicle_id, nodes:[{index,lat,lng},...], distance }, ... ], "total_distance": int }
-"""
-import sys
-import json
-import math
-import os
-import requests
-try:
-    from ortools.constraint_solver import pywrapcp, routing_enums_pb2
-except Exception as e:
-    print(json.dumps({"error": "ortools not available: %s" % str(e)}))
-    sys.exit(1)
-
-
-def get_mappls_distance_matrix(coords, api_key):
-    """Gets a distance matrix from the Mappls API."""
-    url = "https://apis.mappls.com/advancedmaps/v1/{}/distance_matrix".format(api_key)
-    locations = "|".join(["{},{}".format(lat, lng) for lat, lng in coords])
-    params = {
-        "coordinates": locations,
-        "profile": "driving",
-    }
-    response = requests.get(url, params=params)
-    response.raise_for_status()
-    data = response.json()
-
-    # Fallback to haversine if Mappls returns no results
-    if not data.get("results"):
-        return build_distance_matrix(coords)
-    
-    matrix = [[0] * len(coords) for _ in range(len(coords))]
-    for i, row in enumerate(data["results"]["distances"]):
-        for j, dist in enumerate(row):
-            matrix[i][j] = int(dist)
-    return matrix
-    
-
-def haversine_meters(a, b):
-    R = 6371000.0
-    lat1 = math.radians(a[0])
-    lon1 = math.radians(a[1])
-    lat2 = math.radians(b[0])
-    lon2 = math.radians(b[1])
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    h = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
-    return int(R * 2 * math.asin(math.sqrt(h)))
-
-
-def build_distance_matrix(coords):
-    n = len(coords)
-    matrix = [[0] * n for _ in range(n)]
-    for i in range(n):
-        for j in range(n):
-            if i == j:
-                matrix[i][j] = 0
-            else:
-                try:
-                    matrix[i][j] = haversine_meters(coords[i], coords[j])
-                except Exception:
-                    matrix[i][j] = int(math.hypot(coords[i][0] - coords[j][0], coords[i][1] - coords[j][1]))
-    return matrix
-
-
-def solve_cvrp(distance_matrix, demands, vehicle_capacities, num_vehicles, depot=0):
-    manager = pywrapcp.RoutingIndexManager(len(distance_matrix), num_vehicles, depot)
-    routing = pywrapcp.RoutingModel(manager)
-
-    def distance_callback(from_index, to_index):
-        from_node = manager.IndexToNode(from_index)
-        to_node = manager.IndexToNode(to_index)
-        return distance_matrix[from_node][to_node]
-
-    transit_callback_index = routing.RegisterTransitCallback(distance_callback)
-    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
- 
-    def demand_callback(from_index):
-        from_node = manager.IndexToNode(from_index)
-        return demands[from_node]
-
-    demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
-    routing.AddDimensionWithVehicleCapacity(demand_callback_index, 0, vehicle_capacities, True, 'Capacity')
-
-    search_parameters = pywrapcp.DefaultRoutingSearchParameters()
-    search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-
-    solution = routing.SolveWithParameters(search_parameters)
-    if not solution:
-        return None
-
-    routes = []
-    total_distance = 0
-    for vehicle_id in range(num_vehicles):
-        index = routing.Start(vehicle_id)
-        route_nodes = []
-        route_distance = 0
-        while not routing.IsEnd(index):
-            node = manager.IndexToNode(index)
-            route_nodes.append(int(node))
-            previous_index = index
-            index = solution.Value(routing.NextVar(index))
-            route_distance += routing.GetArcCostForVehicle(previous_index, index, vehicle_id)
-        # append end node
-        route_nodes.append(int(manager.IndexToNode(index)))
-        routes.append({
-            'vehicle_id': vehicle_id,
-            'nodes': route_nodes,
-            'distance': int(route_distance)
-        })
-        total_distance += route_distance
-
-    return {'routes': routes, 'total_distance': int(total_distance)}
-
-
-def main():
-    raw = sys.stdin.read()
-    if raw.strip() == '':
-        # example data: small cluster
-        coords = [(12.9716, 77.5946), (12.9720, 77.5950), (12.9750, 77.5900), (12.9800, 77.5930)]
-        demands = [0, 1, 1, 2]
-        vehicle_capacities = [3, 3]
-        num_vehicles = 2
-        depot = 0
-        mappls_api_key = os.environ.get("MAPPLS_API_KEY")
-    else:
-        payload = json.loads(raw)
-        locations = payload.get('locations') or payload.get('coords') or []
-        if not locations:
-            print(json.dumps({'error': 'No locations provided'}))
-            return
-        coords = []
-        for loc in locations:
-            if isinstance(loc, dict):
-                coords.append((float(loc.get('lat')), float(loc.get('lng'))))
-            elif isinstance(loc, (list, tuple)):
-                coords.append((float(loc[0]), float(loc[1])))
-        demands = payload.get('demands') or [0] * len(coords)
-        vehicle_capacities = payload.get('vehicle_capacities') or [int(payload.get('vehicle_capacity', 100))]
-        num_vehicles = int(payload.get('num_vehicles', len(vehicle_capacities)))
-        depot = int(payload.get('depot', 0))
-        mappls_api_key = payload.get("mappls_api_key")
-
-    if mappls_api_key:
-        distance_matrix = get_mappls_distance_matrix(coords, mappls_api_key)
-    else:
-        print(json.dumps({'warning': 'Mappls API key not provided, falling back to haversine distance.'}))
-        distance_matrix = build_distance_matrix(coords)
-
-    result = solve_cvrp(distance_matrix, demands, vehicle_capacities, num_vehicles, depot)
-    if result is None:
-        print(json.dumps({'error': 'No solution found'}))
-        return
-
-    # enrich node indices with coordinates
-    for r in result['routes']:
-        enriched = []
-        for idx in r['nodes']:
-            if 0 <= int(idx) < len(coords):
-                enriched.append({'index': int(idx), 'lat': coords[int(idx)][0], 'lng': coords[int(idx)][1]})
-            else:
-                enriched.append({'index': int(idx)})
-        r['nodes'] = enriched
-
-    print(json.dumps(result))
-
-
-if __name__ == '__main__':
     main()

@@ -1,362 +1,153 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Waste Wise - Admin Dashboard</title>
-    <link rel="stylesheet" href="adminDashboard.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- Language feature removed -->
-    
-    <!-- Your existing adminDashboard.js script -->
-    <script type="module" src="adminDashboard.js" defer></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waste Wise — Control</title>
+<link rel="stylesheet" href="design-tokens.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<script type="module" src="adminEnhanced.js" defer></script>
+<style>
+  body{ background:var(--color-paper-100); display:grid; grid-template-columns:250px 1fr; min-height:100vh}
+  .nav{ background:var(--color-ink-950); color:#fff; padding:18px 14px; display:flex; flex-direction:column; gap:18px; position:sticky; top:0; height:100vh; border-right:1px solid #143324}
+  .nav-brand{ font-family:var(--font-display); font-weight:800; letter-spacing:-.02em; font-size:16px; display:flex; gap:10px; align-items:center}
+  .nav-brand i{ width:32px; height:32px; display:grid; place-items:center; background:var(--color-acid-400); color:var(--color-ink-950); border-radius:8px}
+  .nav-menu{ list-style:none; display:flex; flex-direction:column; gap:6px}
+  .nav-menu a, .nav-menu button{ width:100%; text-align:left; padding:10px 12px; border-radius:10px; border:1px solid transparent; background:transparent; color:#b8c7c0; font-family:var(--font-mono); font-size:11px; letter-spacing:.1em; cursor:pointer; display:flex; gap:10px; align-items:center; text-decoration:none}
+  .nav-menu a.active, .nav-menu a:hover{ background:#132a1e; color:#fff; border-color:#1e3a2a}
+  .nav-menu button.logout{ border-color:#2a1a1a; color:#ffb4b4}
+  .main{ padding:18px; background:var(--color-paper-100)}
+  .top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px}
+  .top h1{ font-family:var(--font-display); font-size:22px; letter-spacing:-.02em}
+  .top .hint{ font-family:var(--font-mono); font-size:11px; color:var(--color-slate-600)}
+  .stats-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
+  .stat{ background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:16px; display:flex; gap:14px; align-items:center; box-shadow:var(--shadow-sm)}
+  .stat i{ width:36px; height:36px; display:grid; place-items:center; background:var(--color-ink-950); color:var(--color-acid-400); border-radius:10px}
+  .stat b{ font-family:var(--font-mono); font-size:20px; display:block}
+  .stat span{ font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; color:var(--color-slate-600)}
+  .charts-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px}
+  .card{ background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:16px; box-shadow:var(--shadow-sm)}
+  .card h3{ font-family:var(--font-mono); font-size:11px; letter-spacing:.12em; color:var(--color-slate-600); margin-bottom:10px}
+  .section-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px}
+  .section-header h2{ font-family:var(--font-display); font-size:16px}
+  .btn{ padding:9px 12px; border-radius:999px; border:1.5px solid var(--color-line); background:#fff; font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; cursor:pointer}
+  .btn-primary{ background:var(--color-ink-950); color:var(--color-acid-400); border-color:var(--color-ink-950)}
+  .content-section{ display:none}
+  .content-section.active{ display:block}
+  table{ width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:12px}
+  th{ text-align:left; padding:10px 12px; background:var(--color-ink-950); color:#fff; font-size:11px; letter-spacing:.08em}
+  td{ padding:10px 12px; border-top:1px solid var(--color-border)}
+  .table-container{ overflow:auto; border:1.5px solid var(--color-line); border-radius:12px; background:#fff}
+  .form-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .form-row input{ padding:10px 12px; border:1.5px solid var(--color-border); border-radius:10px; font-family:var(--font-mono); font-size:12px; background:var(--color-paper-50)}
+  .form-row input:focus{ border-color:var(--color-ink-950); outline:none; box-shadow:0 0 0 3px rgba(214,255,42,.25)}
+  .monitoring-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .monitor-card{ background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:16px}
+  .status-indicator{ width:10px; height:10px; border-radius:50%; background:var(--color-moss-600); display:inline-block; box-shadow:0 0 0 4px rgba(21,128,61,.15)}
+  .status-indicator.offline{ background:var(--color-hazard-500)}
+  .modal{ position:fixed; inset:0; background:rgba(11,26,19,.45); backdrop-filter:blur(4px); display:none; place-items:center; z-index:50}
+  .modal.active{ display:grid}
+  .modal-content{ background:#fff; border:1.5px solid var(--color-line); border-radius:16px; padding:20px; width:90%; max-width:420px}
+  .modal-content h3{ font-family:var(--font-display); font-size:16px}
+  .form-group{ margin-top:10px; display:flex; flex-direction:column; gap:6px}
+  .form-group label{ font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; color:var(--color-slate-600)}
+  .form-group input, .form-group select{ padding:10px 12px; border:1.5px solid var(--color-border); border-radius:10px; font-family:var(--font-mono); font-size:12px}
+  .modal-actions{ display:flex; gap:8px; margin-top:14px}
+  .toast{ position:fixed; bottom:18px; right:18px; background:var(--color-ink-950); color:var(--color-acid-400); padding:12px 14px; border-radius:12px; font-family:var(--font-mono); font-size:11px; display:flex; gap:10px; align-items:center; border:1px solid #143324}
+  .hidden{ display:none !important}
+  .loading-overlay{ position:fixed; inset:0; background:rgba(246,245,239,.7); backdrop-filter:blur(2px); display:grid; place-items:center; z-index:40}
+  .spinner{ width:28px; height:28px; border:2px solid var(--color-border); border-top-color:var(--color-ink-950); border-radius:50%; animation:sp 1s linear infinite}
+  @keyframes sp{ to{ transform:rotate(360deg)}}
+  @media(max-width:900px){ body{ grid-template-columns:1fr} .nav{ height:auto; position:relative} .stats-grid{ grid-template-columns:1fr 1fr} .charts-row{ grid-template-columns:1fr} .form-row{ grid-template-columns:1fr} }
+</style>
 </head>
 <body>
-    <!-- Enhanced Navigation Bar -->
-    <nav class="navbar">
-        <div class="nav-brand">
-            <h1><i class="fas fa-recycle"></i> Waste Wise Admin</h1>
+<nav class="nav">
+  <div class="nav-brand"><i class="fas fa-recycle"></i> WASTE WISE</div>
+  <ul class="nav-menu">
+    <li><a href="#overview" class="nav-link active"><i class="fas fa-border-all"></i> Overview</a></li>
+    <li><a href="#bins" class="nav-link"><i class="fas fa-trash"></i> Bins</a></li>
+    <li><a href="#users" class="nav-link"><i class="fas fa-users"></i> Users</a></li>
+    <li><a href="#routes" class="nav-link"><i class="fas fa-route"></i> Routes</a></li>
+    <li><a href="#monitoring" class="nav-link"><i class="fas fa-chart-line"></i> Monitoring</a></li>
+    <li><a href="dashboard.html"><i class="fas fa-truck"></i> Driver View</a></li>
+    <li><button onclick="logout()" class="logout"><i class="fas fa-sign-out-alt"></i> Logout</button></li>
+  </ul>
+  <div style="margin-top:auto; font-family:var(--font-mono); font-size:10px; color:#6b857d">OSRM roads · LNS · Socket.IO</div>
+</nav>
+
+<div class="main">
+  <div class="top"><h1>Control</h1><div class="hint">paper · ink · acid — municipal ops</div></div>
+
+  <section id="overview" class="content-section active">
+    <div class="stats-grid">
+      <div class="stat"><i class="fas fa-trash"></i><div><b id="totalBins">0</b><span>TOTAL BINS</span></div></div>
+      <div class="stat"><i class="fas fa-users"></i><div><b id="totalUsers">0</b><span>TOTAL USERS</span></div></div>
+      <div class="stat"><i class="fas fa-route"></i><div><b id="activeRoutes">0</b><span>ACTIVE ROUTES</span></div></div>
+      <div class="stat"><i class="fas fa-bell"></i><div><b id="alertCount">0</b><span>ALERTS</span></div></div>
+    </div>
+    <div class="charts-row">
+      <div class="card"><h3>Collection Trends</h3><canvas id="collectionChart" height="160"></canvas></div>
+      <div class="card"><h3>Bin Fill Levels</h3><canvas id="fillLevelChart" height="160"></canvas></div>
+    </div>
+  </section>
+
+  <section id="bins" class="content-section">
+    <div class="section-header"><h2>Dustbin Management</h2><div><button class="btn btn-primary" onclick="exportBinData()"><i class="fas fa-download"></i> Export</button></div></div>
+    <div class="card">
+      <form id="dustbinForm">
+        <div class="form-row">
+          <input type="text" id="dustbinLocationInput" placeholder="Location (Main St & 1st Ave)" required>
+          <input type="number" id="dustbinCapacityInput" placeholder="Capacity (L)" value="100" min="1" max="1000">
         </div>
-        <ul class="nav-menu">
-            <li><a href="#overview" class="nav-link active">Overview</a></li>
-            <li><a href="#bins" class="nav-link">Bin Management</a></li>
-            <li><a href="#users" class="nav-link">Users</a></li>
-            <li><a href="#routes" class="nav-link">Routes</a></li>
-            <li><a href="#monitoring" class="nav-link">Monitoring</a></li>
-            <li><a href="Dashboard.html">Driver Dashboard</a></li>
-            <li><a href="settings.html">Settings</a></li>
-            <li><button onclick="logout()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button></li>
-        </ul>
-    </nav>
-
-    <!-- Main Container -->
-    <div class="container">
-        <!-- Overview Section -->
-        <section id="overview" class="content-section active">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-trash"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3 id="totalBins">0</h3>
-                        <p>Total Bins</p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3 id="totalUsers">0</h3>
-                        <p>Total Users</p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-route"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3 id="activeRoutes">0</h3>
-                        <p>Active Routes</p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3 id="alertCount">0</h3>
-                        <p>Alerts</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="charts-row">
-                <div class="chart-container">
-                    <h3>Collection Trends</h3>
-                    <canvas id="collectionChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>Bin Fill Levels</h3>
-                    <canvas id="fillLevelChart"></canvas>
-                </div>
-            </div>
-        </section>
-
-        <!-- Bin Management Section (Enhanced) -->
-        <section id="bins" class="content-section">
-            <div class="section-header">
-                <h2><i class="fas fa-trash"></i> Dustbin Management</h2>
-                <div class="section-actions">
-                    <button class="btn btn-primary" onclick="exportBinData()">
-                        <i class="fas fa-download"></i> Export Data
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Enhanced Form to Add a New Dustbin + Provisioning -->
-            <div class="card">
-                <form id="dustbinForm">
-                    <div class="form-row">
-                        <input
-                            type="text"
-                            id="dustbinLocationInput"
-                            placeholder="Dustbin Location (e.g., Main St & 1st Ave)"
-                            required
-                        />
-                        <input
-                            type="number"
-                            id="dustbinCapacityInput"
-                            placeholder="Capacity (Liters)"
-                            value="100"
-                            min="1"
-                            max="1000"
-                        />
-                    </div>
-                    <div class="form-row">
-                        <input
-                            type="number"
-                            step="any"
-                            id="dustbinLatitudeInput"
-                            placeholder="Latitude"
-                            required
-                        />
-                        <input
-                            type="number"
-                            step="any"
-                            id="dustbinLongitudeInput"
-                            placeholder="Longitude"
-                            required
-                        />
-                    </div>
-                    <div class="form-row">
-                        <input
-                            type="text"
-                            id="dustbinSsidInput"
-                            placeholder="ESP32 Wi-Fi SSID (e.g., OfficeWiFi)"
-                            autocomplete="off"
-                        />
-                        <input
-                            type="password"
-                            id="dustbinWifiPasswordInput"
-                            placeholder="ESP32 Wi-Fi Password"
-                            autocomplete="new-password"
-                        />
-                    </div>
-                    <small style="display:block; color:#666; margin-bottom:10px;">If you provide SSID/password, the ESP32 can fetch provisioning details from the server during setup.</small>
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Dustbin</button>
-                </form>
-                
-                <!-- Enhanced Table to List Dustbins -->
-                <div class="table-container">
-                    <table id="dustbinTable">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Location</th>
-                                <th>Fill Level</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Dustbin rows will be added here dynamically -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- User Management Section -->
-        <section id="users" class="content-section">
-            <div class="section-header">
-                <h2><i class="fas fa-users"></i> User Management</h2>
-                <div class="section-actions">
-                    <button class="btn btn-primary" onclick="openAddUserModal()">
-                        <i class="fas fa-plus"></i> Add User
-                    </button>
-                    <div class="search-box">
-                        <input type="text" id="userSearch" placeholder="Search users...">
-                        <i class="fas fa-search"></i>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card">
-                <table id="usersTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Users will be populated here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Routes Section -->
-        <section id="routes" class="content-section">
-            <div class="section-header">
-                <h2><i class="fas fa-route"></i> Route Analytics</h2>
-                <div class="section-actions">
-                    <button class="btn btn-secondary" onclick="optimizeAllRoutes()">
-                        <i class="fas fa-magic"></i> Optimize All Routes
-                    </button>
-                </div>
-            </div>
-            
-            <div class="route-stats">
-                <div class="route-stat">
-                    <h3 id="avgRouteDistance">0 km</h3>
-                    <p>Average Route Distance</p>
-                </div>
-                <div class="route-stat">
-                    <h3 id="totalCollections">0</h3>
-                    <p>Total Collections</p>
-                </div>
-                <div class="route-stat">
-                    <h3 id="fuelSaved">0 L</h3>
-                    <p>Fuel Saved</p>
-                </div>
-                <div class="route-stat">
-                    <h3 id="timeSaved">0 hrs</h3>
-                    <p>Time Saved</p>
-                </div>
-            </div>
-
-            <div class="card">
-                <table id="routesTable">
-                    <thead>
-                        <tr>
-                            <th>Route ID</th>
-                            <th>Driver</th>
-                            <th>Distance</th>
-                            <th>Bins</th>
-                            <th>Status</th>
-                            <th>Efficiency</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Routes will be populated here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Monitoring Section -->
-        <section id="monitoring" class="content-section">
-            <div class="section-header">
-                <h2><i class="fas fa-chart-line"></i> System Monitoring</h2>
-            </div>
-            
-            <div class="monitoring-grid">
-                <div class="monitor-card">
-                    <h3>System Health</h3>
-                    <div class="health-indicators">
-                        <div class="indicator">
-                            <span>API Server</span>
-                            <div class="status-indicator online"></div>
-                        </div>
-                        <div class="indicator">
-                            <span>Database</span>
-                            <div class="status-indicator online"></div>
-                        </div>
-                        <div class="indicator">
-                            <span>Map Service</span>
-                            <div class="status-indicator online"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="monitor-card">
-                    <h3>Performance Metrics</h3>
-                    <canvas id="performanceChart"></canvas>
-                </div>
-
-                <div class="monitor-card">
-                    <h3>Recent Alerts</h3>
-                    <div id="alertsList" class="alerts-list">
-                        <!-- Alerts will be populated here -->
-                    </div>
-                </div>
-
-                <div class="monitor-card">
-                    <h3>System Logs</h3>
-                    <div id="logsContainer" class="logs-container">
-                        <!-- Logs will be populated here -->
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>
-
-    <!-- User Management Modal -->
-    <div id="addUserModal" class="modal">
-        <div class="modal-content">
-            <h3>Add New User</h3>
-            <form id="addUserForm">
-                <div class="form-group">
-                    <label>Name:</label>
-                    <input type="text" name="name" required>
-                </div>
-                <div class="form-group">
-                    <label>Email:</label>
-                    <input type="email" name="email" required>
-                </div>
-                <div class="form-group">
-                    <label>Role:</label>
-                    <select name="role" required>
-                        <option value="driver">Driver</option>
-                        <option value="admin">Admin</option>
-                        <option value="supervisor">Supervisor</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Password:</label>
-                    <input type="password" name="password" required>
-                </div>
-                <div class="modal-actions">
-                    <button type="submit" class="btn btn-primary">Add User</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('addUserModal')">Cancel</button>
-                </div>
-            </form>
+        <div class="form-row">
+          <input type="number" step="any" id="dustbinLatitudeInput" placeholder="Latitude" required>
+          <input type="number" step="any" id="dustbinLongitudeInput" placeholder="Longitude" required>
         </div>
-    </div>
-
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="loading-overlay hidden">
-        <div class="spinner"></div>
-        <p>Loading...</p>
-    </div>
-
-    <!-- Toast Notification -->
-    <div id="toast" class="toast hidden">
-        <div class="toast-content">
-            <i class="fas fa-check-circle"></i>
-            <span id="toastMessage">Operation successful!</span>
+        <div class="form-row">
+          <input type="text" id="dustbinSsidInput" placeholder="ESP32 SSID">
+          <input type="password" id="dustbinWifiPasswordInput" placeholder="Wi-Fi Password">
         </div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--color-slate-600);margin:8px 0">If SSID set, ESP32 fetches provisioning from <code>/provision/:binId</code></div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Dustbin</button>
+      </form>
+      <div class="table-container" style="margin-top:14px">
+        <table id="dustbinTable"><thead><tr><th>ID</th><th>Location</th><th>Fill</th><th>Status</th><th>Actions</th></tr></thead><tbody></tbody></table>
+      </div>
     </div>
+  </section>
 
-    <!-- Existing Message Box -->
-    <div id="messageBox" class="message-box">
-        <h3 id="messageBoxTitle"></h3>
-        <p id="messageBoxContent"></p>
-        <button id="messageBoxConfirmBtn">OK</button>
-        <button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button>
+  <section id="users" class="content-section">
+    <div class="section-header"><h2>User Management</h2><div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="openAddUserModal()"><i class="fas fa-plus"></i> Add User</button><input type="text" id="userSearch" placeholder="Search…" style="padding:8px 12px;border:1.5px solid var(--color-border);border-radius:999px;font-family:var(--font-mono);font-size:12px"></div></div>
+    <div class="card"><table id="usersTable"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="routes" class="content-section">
+    <div class="section-header"><h2>Route Analytics</h2><button class="btn" onclick="optimizeAllRoutes()"><i class="fas fa-magic"></i> Optimise All</button></div>
+    <div class="stats-grid" style="margin-bottom:12px">
+      <div class="stat"><div><b id="avgRouteDistance">0 km</b><span>AVG DISTANCE</span></div></div>
+      <div class="stat"><div><b id="totalCollections">0</b><span>COLLECTIONS</span></div></div>
+      <div class="stat"><div><b id="fuelSaved">0 L</b><span>FUEL SAVED</span></div></div>
+      <div class="stat"><div><b id="timeSaved">0 hrs</b><span>TIME SAVED</span></div></div>
     </div>
-    <div id="overlay" class="overlay"></div>
+    <div class="card"><table id="routesTable"><thead><tr><th>Route</th><th>Driver</th><th>Distance</th><th>Bins</th><th>Status</th><th>Eff.</th><th>Action</th></tr></thead><tbody></tbody></table></div>
+  </section>
 
-    <script src="adminEnhanced.js"></script>
+  <section id="monitoring" class="content-section">
+    <div class="monitoring-grid">
+      <div class="monitor-card"><h3>System Health</h3><div style="display:grid;gap:8px;margin-top:10px"><div style="display:flex;justify-content:space-between"><span>API Server</span><i class="status-indicator"></i></div><div style="display:flex;justify-content:space-between"><span>Database</span><i class="status-indicator"></i></div><div style="display:flex;justify-content:space-between"><span>Map Service</span><i class="status-indicator"></i></div></div></div>
+      <div class="monitor-card"><h3>Performance</h3><canvas id="performanceChart" height="140"></canvas></div>
+      <div class="monitor-card"><h3>Recent Alerts</h3><div id="alertsList"></div></div>
+      <div class="monitor-card"><h3>Citizen Complaints <span id="openComplaints" style="font-size:10px;color:var(--color-slate-500)"></span></h3><div id="complaintsList" style="display:grid;gap:8px;margin-top:6px"></div></div>
+      <div class="monitor-card"><h3>System Logs</h3><div id="logsContainer" style="font-family:var(--font-mono);font-size:11px"></div></div></div>
+    </div>
+  </section>
+</div>
+
+<div id="addUserModal" class="modal"><div class="modal-content"><h3>Add User</h3><form id="addUserForm"><div class="form-group"><label>Name</label><input name="name" required></div><div class="form-group"><label>Email</label><input type="email" name="email" required></div><div class="form-group"><label>Role</label><select name="role" required><option value="driver">Driver</option><option value="admin">Admin</option><option value="supervisor">Supervisor</option></select></div><div class="form-group"><label>Password</label><input type="password" name="password" required></div><div class="modal-actions"><button type="submit" class="btn btn-primary">Add User</button><button type="button" class="btn" onclick="closeModal('addUserModal')">Cancel</button></div></form></div></div>
+<div id="loadingOverlay" class="loading-overlay hidden"><div class="spinner"></div></div>
+<div id="toast" class="toast hidden"><i class="fas fa-check-circle"></i><span id="toastMessage">OK</span></div>
+<div id="messageBox" class="message-box"><h3 id="messageBoxTitle"></h3><p id="messageBoxContent"></p><button id="messageBoxConfirmBtn">OK</button><button id="messageBoxCancelBtn" class="cancel-btn hidden">Cancel</button></div>
+<div id="overlay" class="overlay"></div>
 </body>
 </html>
